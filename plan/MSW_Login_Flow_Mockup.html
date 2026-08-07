@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSW ePlant — Login & Role Flow</title>
+<style>
+:root {
+  --bg:        #090E1A;
+  --surface:   #111827;
+  --surface2:  #1C2539;
+  --border:    #1F2D45;
+  --primary:   #00C2FF;
+  --green:     #00E5A0;
+  --amber:     #FFB020;
+  --red:       #FF4D6A;
+  --purple:    #C084FC;
+  --text:      #F0F4FF;
+  --text-sub:  #6B7FA3;
+  --text-dim:  #3D4F6E;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;padding:32px 16px 48px;}
+
+.page-title{text-align:center;font-size:11px;font-weight:700;color:var(--text-sub);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+.page-sub{text-align:center;font-size:20px;font-weight:800;color:var(--text);margin-bottom:36px;}
+
+/* ── LAYOUT ── */
+.wrap{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;align-items:flex-start;}
+
+/* ── PHONE ── */
+.phone{
+  width:320px;flex-shrink:0;
+  border-radius:40px;
+  background:var(--bg);
+  border:2px solid var(--border);
+  overflow:hidden;
+  box-shadow:0 32px 64px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04);
+}
+.status-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px 4px;font-size:10px;color:var(--text-sub);font-weight:600;}
+.screen{height:640px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding-bottom:72px;}
+.screen::-webkit-scrollbar{display:none;}
+
+/* ── LOGIN SCREEN ── */
+.login-bg{
+  min-height:580px;
+  display:flex;flex-direction:column;align-items:center;
+  padding:32px 20px 24px;
+  background:radial-gradient(ellipse at 50% -10%, rgba(0,194,255,.12) 0%, transparent 60%);
+  position:relative;
+}
+.login-logo{
+  width:56px;height:56px;border-radius:16px;
+  background:linear-gradient(135deg,var(--primary),#0072FF);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:900;color:#fff;letter-spacing:-0.5px;
+  margin-bottom:12px;
+  box-shadow:0 8px 24px rgba(0,194,255,.3);
+}
+.login-title{font-size:20px;font-weight:800;color:var(--text);margin-bottom:2px;}
+.login-sub{font-size:10px;color:var(--text-sub);margin-bottom:28px;text-align:center;line-height:1.5;}
+
+.login-label{font-size:10px;font-weight:700;color:var(--text-sub);letter-spacing:.6px;text-transform:uppercase;margin-bottom:10px;align-self:flex-start;width:100%;}
+
+/* role cards */
+.role-cards{width:100%;display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+.role-card{
+  width:100%;padding:14px 16px;
+  background:var(--surface);border:1.5px solid var(--border);
+  border-radius:14px;cursor:pointer;
+  display:flex;align-items:center;gap:12px;
+  transition:border-color .2s,background .2s;
+  position:relative;overflow:hidden;
+}
+.role-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--rc,var(--primary));border-radius:14px 0 0 14px;}
+.role-card.selected{border-color:var(--rc);background:color-mix(in srgb,var(--rc) 8%,var(--surface));}
+.role-icon{width:38px;height:38px;border-radius:10px;background:color-mix(in srgb,var(--rc) 14%,transparent);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+.role-info{flex:1;}
+.role-name{font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;}
+.role-desc{font-size:10px;color:var(--text-sub);line-height:1.4;}
+.role-lock{font-size:14px;color:var(--text-dim);}
+.role-free{font-size:9px;font-weight:700;background:rgba(0,229,160,.12);color:var(--green);padding:2px 7px;border-radius:10px;border:1px solid rgba(0,229,160,.2);}
+
+/* password field */
+.pw-section{width:100%;margin-bottom:20px;}
+.pw-label{font-size:10px;font-weight:700;color:var(--text-sub);letter-spacing:.6px;text-transform:uppercase;margin-bottom:8px;}
+.pw-field{
+  width:100%;background:var(--surface);border:1.5px solid var(--border);
+  border-radius:12px;padding:12px 14px;
+  display:flex;align-items:center;gap:10px;
+}
+.pw-field span{font-size:16px;}
+.pw-dots{display:flex;gap:8px;align-items:center;flex:1;}
+.pw-dot{width:8px;height:8px;background:var(--primary);border-radius:50%;}
+.pw-dot.empty{background:var(--border);}
+.pw-eye{font-size:14px;color:var(--text-dim);}
+
+.btn-masuk{
+  width:100%;padding:14px;
+  background:linear-gradient(135deg,var(--primary),#0072FF);
+  border:none;border-radius:13px;
+  font-size:14px;font-weight:800;color:#fff;
+  cursor:pointer;letter-spacing:.3px;
+  box-shadow:0 6px 20px rgba(0,194,255,.25);
+}
+.btn-masuk.green{background:linear-gradient(135deg,var(--green),#00A878);box-shadow:0 6px 20px rgba(0,229,160,.2);}
+
+.divider{width:100%;height:1px;background:var(--border);margin:16px 0;position:relative;}
+.divider::after{content:'atau';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--bg);padding:0 10px;font-size:9px;color:var(--text-dim);}
+
+/* ── HOME SCREENS ── */
+.home-screen{padding:0;}
+
+.top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 16px 6px;border-bottom:1px solid var(--border);}
+.top-left{display:flex;align-items:center;gap:8px;}
+.top-logo{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--primary),#0072FF);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#fff;}
+.top-name{font-size:12px;font-weight:700;}
+.top-sub{font-size:9px;color:var(--text-sub);}
+.top-icons{display:flex;gap:8px;}
+.t-icon{width:28px;height:28px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;position:relative;}
+.t-dot{position:absolute;top:4px;right:4px;width:6px;height:6px;background:var(--red);border-radius:50%;border:1.5px solid var(--bg);}
+
+/* role badge strip */
+.role-strip{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:color-mix(in srgb,var(--strip-color,var(--primary)) 6%,var(--bg));}
+.role-badge-label{font-size:9px;font-weight:700;color:var(--strip-color,var(--primary));display:flex;align-items:center;gap:5px;}
+.role-badge-label span{font-size:12px;}
+.role-shift{font-size:9px;color:var(--text-sub);}
+
+/* greeting */
+.greeting{padding:10px 16px 6px;}
+.greeting-hi{font-size:10px;color:var(--text-sub);}
+.greeting-name{font-size:16px;font-weight:800;letter-spacing:-.3px;}
+
+/* mini status */
+.mini-status{margin:8px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.ms-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);}
+.ms-title{font-size:9px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.6px;}
+.live{display:flex;align-items:center;gap:3px;font-size:8px;font-weight:700;color:var(--green);}
+.ldot{width:5px;height:5px;background:var(--green);border-radius:50%;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.ms-grid{display:grid;grid-template-columns:1fr 1fr;}
+.ms-cell{padding:8px 12px;border-right:1px solid var(--border);}
+.ms-cell:last-child{border-right:none;}
+.ms-cell:nth-child(3),.ms-cell:nth-child(4){border-top:1px solid var(--border);}
+.ms-lbl{font-size:8px;color:var(--text-sub);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px;}
+.ms-val{font-size:17px;font-weight:800;color:var(--primary);line-height:1;}
+.ms-unit{font-size:8px;color:var(--text-sub);}
+
+/* section label */
+.sec-lbl{padding:10px 16px 6px;font-size:9px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.6px;}
+
+/* menu grid */
+.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 16px;margin-bottom:12px;}
+.mi{display:flex;flex-direction:column;align-items:center;gap:5px;padding:11px 4px 9px;background:var(--surface);border:1px solid var(--border);border-radius:12px;position:relative;overflow:hidden;}
+.mi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--mc,var(--primary));opacity:.6;}
+.mi-icon{width:32px;height:32px;border-radius:9px;background:color-mix(in srgb,var(--mc,var(--primary)) 14%,transparent);display:flex;align-items:center;justify-content:center;font-size:16px;}
+.mi-lbl{font-size:8px;font-weight:700;color:var(--text-sub);text-align:center;line-height:1.2;}
+.mi-badge{position:absolute;top:5px;right:5px;background:var(--red);color:#fff;font-size:7px;font-weight:700;width:13px;height:13px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+.mi.dimmed{opacity:.25;pointer-events:none;}
+
+/* bottom nav */
+.bnav{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:6px 0 14px;}
+.ni{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;cursor:pointer;}
+.ni-icon{font-size:18px;}
+.ni-lbl{font-size:8px;font-weight:600;color:var(--text-sub);}
+.ni.active .ni-lbl{color:var(--primary);}
+.ni.active .ni-icon{filter:drop-shadow(0 0 4px var(--primary));}
+
+/* ── FLOW DIAGRAM ── */
+.flow{max-width:480px;}
+.flow h2{font-size:16px;font-weight:800;color:var(--text);margin-bottom:4px;}
+.flow .fsub{font-size:11px;color:var(--text-sub);margin-bottom:20px;}
+
+.flow-box{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:8px;}
+.flow-box.op{border-left:3px solid var(--primary);}
+.flow-box.maint{border-left:3px solid var(--amber);}
+.flow-box.gen{border-left:3px solid var(--green);}
+.fb-title{font-size:12px;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.fb-body{font-size:10px;color:var(--text-sub);line-height:1.7;}
+.fb-nav{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+.fb-nav-label{font-size:9px;color:var(--text-dim);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px;}
+.nav-pills{display:flex;gap:6px;flex-wrap:wrap;}
+.npill{font-size:9px;font-weight:700;padding:3px 9px;border-radius:20px;border:1px solid;}
+.npill.op{color:var(--primary);border-color:rgba(0,194,255,.3);background:rgba(0,194,255,.08);}
+.npill.am{color:var(--amber);border-color:rgba(255,176,32,.3);background:rgba(255,176,32,.08);}
+.npill.gr{color:var(--green);border-color:rgba(0,229,160,.3);background:rgba(0,229,160,.08);}
+.npill.dim{color:var(--text-dim);border-color:var(--border);background:transparent;text-decoration:line-through;}
+.npill.neu{color:var(--text-sub);border-color:var(--border);background:var(--surface2);}
+
+.arrow{text-align:center;color:var(--text-dim);font-size:16px;margin:4px 0;}
+.pw-note{font-size:9px;color:var(--text-dim);display:flex;align-items:center;gap:4px;margin-top:6px;}
+
+/* hidden note */
+.hide-note{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:8px;font-weight:700;
+  background:rgba(255,77,106,.08);color:var(--red);
+  padding:1px 6px;border-radius:8px;border:1px solid rgba(255,77,106,.2);
+}
+.show-note{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:8px;font-weight:700;
+  background:rgba(0,229,160,.08);color:var(--green);
+  padding:1px 6px;border-radius:8px;border:1px solid rgba(0,229,160,.2);
+}
+</style>
+</head>
+<body>
+
+<p class="page-title">MSW ePlant v3.0</p>
+<p class="page-sub">Login & Role Flow</p>
+
+<div class="wrap">
+
+<!-- ════ PHONE 1: LOGIN ════ -->
+<div class="phone">
+  <div class="status-bar"><span>06:28</span><span>📶 🔋</span></div>
+  <div class="screen">
+    <div class="login-bg">
+      <div class="login-logo">MSW</div>
+      <div class="login-title">MSW ePlant</div>
+      <div class="login-sub">PT Makmur Sejahtera Wisesa<br>2×135 MW CFPP + Solar PV</div>
+
+      <div class="login-label">Masuk sebagai</div>
+
+      <div class="role-cards">
+        <!-- Operation -->
+        <div class="role-card selected" style="--rc:var(--primary)">
+          <div class="role-icon" style="--rc:var(--primary)">⚡</div>
+          <div class="role-info">
+            <div class="role-name">Operation</div>
+            <div class="role-desc">Plant monitoring + Logsheet operator shift</div>
+          </div>
+          <div class="role-lock">🔒</div>
+        </div>
+        <!-- Maintenance -->
+        <div class="role-card" style="--rc:var(--amber)">
+          <div class="role-icon" style="--rc:var(--amber)">🔧</div>
+          <div class="role-info">
+            <div class="role-name">Maintenance</div>
+            <div class="role-desc">WO reporting + MSW AI knowledge base</div>
+          </div>
+          <div class="role-lock">🔒</div>
+        </div>
+        <!-- General -->
+        <div class="role-card" style="--rc:var(--green)">
+          <div class="role-icon" style="--rc:var(--green)">👁</div>
+          <div class="role-info">
+            <div class="role-name">General</div>
+            <div class="role-desc">Monitoring umum, OKR, HSE, Warehouse</div>
+          </div>
+          <span class="role-free">TANPA PASSWORD</span>
+        </div>
+      </div>
+
+      <!-- Password field (shown for Operation selected) -->
+      <div class="pw-section">
+        <div class="pw-label">Password Operation</div>
+        <div class="pw-field">
+          <span>🔑</span>
+          <div class="pw-dots">
+            <div class="pw-dot"></div>
+            <div class="pw-dot"></div>
+            <div class="pw-dot"></div>
+            <div class="pw-dot"></div>
+            <div class="pw-dot empty"></div>
+            <div class="pw-dot empty"></div>
+          </div>
+          <span class="pw-eye">👁</span>
+        </div>
+      </div>
+
+      <button class="btn-masuk">Masuk sebagai Operation →</button>
+
+    </div>
+  </div>
+</div>
+
+<!-- ════ PHONE 2: HOME OPERATION ════ -->
+<div class="phone">
+  <div class="status-bar"><span>06:28</span><span>📶 🔋</span></div>
+  <div class="screen">
+    <div class="home-screen">
+      <div class="top-bar">
+        <div class="top-left">
+          <div class="top-logo">MSW</div>
+          <div><div class="top-name">MSW ePlant</div><div class="top-sub">2×135 MW CFPP</div></div>
+        </div>
+        <div class="top-icons">
+          <div class="t-icon">🔔<span class="t-dot"></span></div>
+        </div>
+      </div>
+
+      <!-- Role strip Operation -->
+      <div class="role-strip" style="--strip-color:var(--primary)">
+        <div class="role-badge-label"><span>⚡</span> Mode Operation</div>
+        <div class="role-shift">Shift I · 07:00–15:00</div>
+      </div>
+
+      <div class="greeting">
+        <div class="greeting-hi">Selamat pagi,</div>
+        <div class="greeting-name">Operator Shift I</div>
+      </div>
+
+      <!-- Mini status -->
+      <div class="mini-status">
+        <div class="ms-header">
+          <span class="ms-title">Plant Status</span>
+          <span class="live"><span class="ldot"></span>LIVE</span>
+        </div>
+        <div class="ms-grid">
+          <div class="ms-cell"><div class="ms-lbl">Unit 1</div><div class="ms-val">12.5</div><div class="ms-unit">MW</div></div>
+          <div class="ms-cell"><div class="ms-lbl">Unit 2</div><div class="ms-val">118.3</div><div class="ms-unit">MW</div></div>
+          <div class="ms-cell"><div class="ms-lbl">Load AI</div><div class="ms-val" style="font-size:14px">8.4</div><div class="ms-unit">MW</div></div>
+          <div class="ms-cell"><div class="ms-lbl">Load PLN</div><div class="ms-val" style="font-size:14px">10.7</div><div class="ms-unit">MW</div></div>
+        </div>
+      </div>
+
+      <div class="sec-lbl">Menu</div>
+      <div class="mgrid">
+        <div class="mi" style="--mc:var(--primary)"><div class="mi-icon">🏭</div><div class="mi-lbl">Plant</div></div>
+        <div class="mi" style="--mc:#00BCD4"><div class="mi-icon">💨</div><div class="mi-lbl">CEMS</div></div>
+        <div class="mi" style="--mc:var(--green)"><div class="mi-icon">☀️</div><div class="mi-lbl">Solar PV</div></div>
+        <div class="mi" style="--mc:#38BDF8"><div class="mi-icon">📊</div><div class="mi-lbl">Analytics</div></div>
+        <div class="mi" style="--mc:var(--amber)"><div class="mi-icon">⚠️</div><div class="mi-lbl">Hazard Report</div></div>
+        <div class="mi" style="--mc:var(--purple)"><div class="mi-icon">📦</div><div class="mi-lbl">Warehouse</div></div>
+        <div class="mi" style="--mc:#F472B6"><div class="mi-icon">🎯</div><div class="mi-lbl">OKR</div></div>
+        <!-- Maintenance: hidden -->
+        <div class="mi dimmed" style="--mc:var(--amber)"><div class="mi-icon">🔧</div><div class="mi-lbl">Maintenance</div></div>
+      </div>
+
+      <!-- Bottom nav Operation -->
+      <div class="bnav">
+        <div class="ni active"><span class="ni-icon">🏠</span><span class="ni-lbl" style="color:var(--primary)">Home</span></div>
+        <div class="ni"><span class="ni-icon">⚡</span><span class="ni-lbl">Operation</span></div>
+        <div class="ni"><span class="ni-icon">📋</span><span class="ni-lbl">Logsheet</span></div>
+        <div class="ni"><span class="ni-icon">⚙️</span><span class="ni-lbl">Setting</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ PHONE 3: HOME MAINTENANCE ════ -->
+<div class="phone">
+  <div class="status-bar"><span>06:28</span><span>📶 🔋</span></div>
+  <div class="screen">
+    <div class="home-screen">
+      <div class="top-bar">
+        <div class="top-left">
+          <div class="top-logo">MSW</div>
+          <div><div class="top-name">MSW ePlant</div><div class="top-sub">2×135 MW CFPP</div></div>
+        </div>
+        <div class="top-icons">
+          <div class="t-icon">🔔</div>
+        </div>
+      </div>
+
+      <!-- Role strip Maintenance -->
+      <div class="role-strip" style="--strip-color:var(--amber)">
+        <div class="role-badge-label"><span>🔧</span> Mode Maintenance</div>
+        <div class="role-shift">12 Jun 2026</div>
+      </div>
+
+      <div class="greeting">
+        <div class="greeting-hi">Selamat pagi,</div>
+        <div class="greeting-name">Teknisi Maintenance</div>
+      </div>
+
+      <div class="mini-status">
+        <div class="ms-header">
+          <span class="ms-title">Plant Status</span>
+          <span class="live"><span class="ldot"></span>LIVE</span>
+        </div>
+        <div class="ms-grid">
+          <div class="ms-cell"><div class="ms-lbl">Unit 1</div><div class="ms-val">12.5</div><div class="ms-unit">MW</div></div>
+          <div class="ms-cell"><div class="ms-lbl">Unit 2</div><div class="ms-val">118.3</div><div class="ms-unit">MW</div></div>
+          <div class="ms-cell"><div class="ms-lbl">Load AI</div><div class="ms-val" style="font-size:14px">8.4</div><div class="ms-unit">MW</div></div>
+          <div class="ms-cell"><div class="ms-lbl">Load PLN</div><div class="ms-val" style="font-size:14px">10.7</div><div class="ms-unit">MW</div></div>
+        </div>
+      </div>
+
+      <div class="sec-lbl">Menu</div>
+      <div class="mgrid">
+        <div class="mi" style="--mc:var(--primary)"><div class="mi-icon">🏭</div><div class="mi-lbl">Plant</div></div>
+        <div class="mi" style="--mc:#00BCD4"><div class="mi-icon">💨</div><div class="mi-lbl">CEMS</div></div>
+        <div class="mi" style="--mc:var(--green)"><div class="mi-icon">☀️</div><div class="mi-lbl">Solar PV</div></div>
+        <div class="mi" style="--mc:#38BDF8"><div class="mi-icon">📊</div><div class="mi-lbl">Analytics</div></div>
+        <div class="mi" style="--mc:var(--amber)"><div class="mi-icon">⚠️</div><div class="mi-lbl">Hazard Report</div></div>
+        <div class="mi" style="--mc:var(--purple)"><div class="mi-icon">📦</div><div class="mi-lbl">Warehouse</div></div>
+        <div class="mi" style="--mc:var(--amber)"><div class="mi-icon">🔧</div><div class="mi-lbl">Maintenance</div><span class="mi-badge">3</span></div>
+        <!-- Logsheet: hidden -->
+        <div class="mi dimmed" style="--mc:var(--amber)"><div class="mi-icon">📋</div><div class="mi-lbl">Logsheet</div></div>
+      </div>
+
+      <!-- Bottom nav Maintenance -->
+      <div class="bnav">
+        <div class="ni active"><span class="ni-icon">🏠</span><span class="ni-lbl" style="color:var(--primary)">Home</span></div>
+        <div class="ni"><span class="ni-icon">⚡</span><span class="ni-lbl">Operation</span></div>
+        <div class="ni"><span class="ni-icon">🔧</span><span class="ni-lbl" style="color:var(--amber)">Maintenance</span></div>
+        <div class="ni"><span class="ni-icon">⚙️</span><span class="ni-lbl">Setting</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ PHONE 4: HOME GENERAL ════ -->
+<div class="phone">
+  <div class="status-bar"><span>06:28</span><span>📶 🔋</span></div>
+  <div class="screen">
+    <div class="home-screen">
+      <div class="top-bar">
+        <div class="top-left">
+          <div class="top-logo">MSW</div>
+          <div><div class="top-name">MSW ePlant</div><div class="top-sub">2×135 MW CFPP</div></div>
+        </div>
+        <div class="top-icons">
+          <div class="t-icon">🔔</div>
+        </div>
+      </div>
+
+      <!-- Role strip General -->
+      <div class="role-strip" style="--strip-color:var(--green)">
+        <div class="role-badge-label"><span>👁</span> Mode General</div>
+        <div class="role-shift">View only</div>
+      </div>
+
+      <div class="greeting">
+        <div class="greeting-hi">Selamat pagi,</div>
+        <div class="greeting-name">Guest / Karyawan MSW</div>
+      </div>
+
+      <div class="mini-status">
+        <div class="ms-header">
+          <span class="ms-title">Plant Status</span>
+          <span class="live"><span class="ldot"></span>LIVE</span>
+        </div>
+        <div class="ms-grid">
+          <div class="ms-cell"><div class="ms-lbl">Unit 1</div><div class="ms-val">12.5</div><div class="ms-unit">MW</div></div>
+          <div class="ms-cell"><div class="ms-lbl">Unit 2</div><div class="ms-val">118.3</div><div class="ms-unit">MW</div></div>
+          <div class="ms-cell"><div class="ms-lbl">Load AI</div><div class="ms-val" style="font-size:14px">8.4</div><div class="ms-unit">MW</div></div>
+          <div class="ms-cell"><div class="ms-lbl">Load PLN</div><div class="ms-val" style="font-size:14px">10.7</div><div class="ms-unit">MW</div></div>
+        </div>
+      </div>
+
+      <div class="sec-lbl">Menu</div>
+      <div class="mgrid">
+        <div class="mi" style="--mc:var(--primary)"><div class="mi-icon">🏭</div><div class="mi-lbl">Plant</div></div>
+        <div class="mi" style="--mc:#00BCD4"><div class="mi-icon">💨</div><div class="mi-lbl">CEMS</div></div>
+        <div class="mi" style="--mc:var(--green)"><div class="mi-icon">☀️</div><div class="mi-lbl">Solar PV</div></div>
+        <div class="mi" style="--mc:#38BDF8"><div class="mi-icon">📊</div><div class="mi-lbl">Analytics</div></div>
+        <div class="mi" style="--mc:var(--amber)"><div class="mi-icon">⚠️</div><div class="mi-lbl">Hazard Report</div></div>
+        <div class="mi" style="--mc:var(--purple)"><div class="mi-icon">📦</div><div class="mi-lbl">Warehouse</div></div>
+        <div class="mi" style="--mc:#F472B6"><div class="mi-icon">🎯</div><div class="mi-lbl">OKR</div></div>
+        <!-- Logsheet & Maintenance: hidden -->
+        <div class="mi dimmed" style="--mc:var(--amber)"><div class="mi-icon">📋</div><div class="mi-lbl">Logsheet</div></div>
+      </div>
+
+      <!-- Bottom nav General -->
+      <div class="bnav">
+        <div class="ni active"><span class="ni-icon">🏠</span><span class="ni-lbl" style="color:var(--primary)">Home</span></div>
+        <div class="ni"><span class="ni-icon">⚡</span><span class="ni-lbl">Operation</span></div>
+        <div class="ni"><span class="ni-icon">🎯</span><span class="ni-lbl" style="color:var(--green)">OKR</span></div>
+        <div class="ni"><span class="ni-icon">⚙️</span><span class="ni-lbl">Setting</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<!-- ════ FLOW SUMMARY ════ -->
+<div style="max-width:900px;margin:40px auto 0;padding:0 16px;">
+  <div class="flow">
+    <h2>Role Flow Summary</h2>
+    <p class="fsub">Perbedaan akses, menu, dan bottom nav per role</p>
+
+    <div class="flow-box op">
+      <div class="fb-title">⚡ Operation <span style="font-size:10px;color:var(--text-sub);font-weight:400">— Password required</span></div>
+      <div class="fb-body">
+        <span class="show-note">✓ TAMPIL</span> Plant · CEMS · Solar PV · Analytics · Hazard Report · Warehouse · OKR<br>
+        <span class="hide-note">✗ HIDDEN</span> Maintenance · WO Report · MSW AI
+      </div>
+      <div class="fb-nav">
+        <div class="fb-nav-label">Bottom Nav</div>
+        <div class="nav-pills">
+          <span class="npill op">🏠 Home</span>
+          <span class="npill op">⚡ Operation</span>
+          <span class="npill op">📋 Logsheet</span>
+          <span class="npill neu">⚙️ Setting</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-box maint">
+      <div class="fb-title">🔧 Maintenance <span style="font-size:10px;color:var(--text-sub);font-weight:400">— Password required</span></div>
+      <div class="fb-body">
+        <span class="show-note">✓ TAMPIL</span> Plant · CEMS · Solar PV · Analytics · Hazard Report · Warehouse · Maintenance · MSW AI<br>
+        <span class="hide-note">✗ HIDDEN</span> Logsheet operator
+      </div>
+      <div class="fb-nav">
+        <div class="fb-nav-label">Bottom Nav</div>
+        <div class="nav-pills">
+          <span class="npill op">🏠 Home</span>
+          <span class="npill op">⚡ Operation</span>
+          <span class="npill am">🔧 Maintenance</span>
+          <span class="npill neu">⚙️ Setting</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-box gen">
+      <div class="fb-title">👁 General <span style="font-size:10px;color:var(--green);font-weight:400">— Tanpa password</span></div>
+      <div class="fb-body">
+        <span class="show-note">✓ TAMPIL</span> Plant · CEMS · Solar PV · Analytics · Hazard Report · Warehouse · OKR<br>
+        <span class="hide-note">✗ HIDDEN</span> Logsheet · Maintenance · MSW AI
+      </div>
+      <div class="fb-nav">
+        <div class="fb-nav-label">Bottom Nav</div>
+        <div class="nav-pills">
+          <span class="npill op">🏠 Home</span>
+          <span class="npill op">⚡ Operation</span>
+          <span class="npill gr">🎯 OKR</span>
+          <span class="npill neu">⚙️ Setting</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

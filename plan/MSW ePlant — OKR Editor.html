@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<!-- saved from url=(0058)file:///C:/Users/ASUS/Downloads/MSW_OKR_Editor_Mockup.html -->
+<html lang="id"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MSW ePlant — OKR Editor</title>
+<style>
+:root {
+  --bg:       #090E1A;
+  --surface:  #111827;
+  --surface2: #1C2539;
+  --border:   #1F2D45;
+  --primary:  #00C2FF;
+  --green:    #00E5A0;
+  --amber:    #FFB020;
+  --red:      #FF4D6A;
+  --purple:   #C084FC;
+  --text:     #F0F4FF;
+  --text-sub: #6B7FA3;
+  --text-dim: #3D4F6E;
+  --o1:#00C2FF; --o2:#C084FC; --o3:#00E5A0; --o4:#FFB020;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;padding:32px 16px 48px;}
+.page-title{text-align:center;font-size:11px;font-weight:700;color:var(--text-sub);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+.page-sub{text-align:center;font-size:20px;font-weight:800;color:var(--text);margin-bottom:10px;}
+.page-desc{text-align:center;font-size:11px;color:var(--text-sub);margin-bottom:32px;line-height:1.6;}
+.wrap{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;align-items:flex-start;}
+
+/* PHONE */
+.phone{width:340px;flex-shrink:0;border-radius:42px;background:var(--bg);border:2px solid var(--border);overflow:hidden;box-shadow:0 32px 64px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04);}
+.status-bar{display:flex;justify-content:space-between;padding:10px 22px 4px;font-size:10px;color:var(--text-sub);font-weight:600;}
+.screen{height:720px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;padding-bottom:72px;}
+.screen::-webkit-scrollbar{display:none;}
+
+/* TOP BAR */
+.top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 16px 8px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10;}
+.top-left{display:flex;align-items:center;gap:8px;}
+.top-logo{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--primary),#0072FF);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#fff;}
+.top-title{font-size:13px;font-weight:700;}
+.top-sub-label{font-size:9px;color:var(--text-sub);}
+.icon-btn{width:30px;height:30px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;}
+
+/* YEAR SELECTOR */
+.year-selector{margin:12px 16px 0;display:flex;align-items:center;gap:8px;}
+.year-btn{width:28px;height:28px;border-radius:8px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;color:var(--text-sub);}
+.year-display{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;}
+.year-val{font-size:15px;font-weight:800;color:var(--text);}
+.year-status{font-size:9px;font-weight:700;color:var(--green);background:rgba(0,229,160,.1);padding:2px 8px;border-radius:8px;border:1px solid rgba(0,229,160,.2);}
+.btn-new-year{margin:8px 16px 0;width:calc(100% - 32px);padding:9px;background:transparent;border:1.5px dashed var(--border);border-radius:10px;font-size:10px;font-weight:700;color:var(--text-sub);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+.btn-new-year:hover{border-color:var(--primary);color:var(--primary);}
+
+/* SECTION LABEL */
+.sec-lbl{padding:12px 16px 6px;font-size:9px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.6px;display:flex;align-items:center;justify-content:space-between;}
+.sec-action{font-size:9px;font-weight:700;color:var(--primary);cursor:pointer;display:flex;align-items:center;gap:3px;}
+
+/* OBJECTIVE CARD (editor) */
+.obj-editor{margin:0 16px 10px;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;}
+.obj-editor-header{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;border-left:3px solid var(--oc,var(--primary));}
+.obj-drag{font-size:14px;color:var(--text-dim);cursor:grab;}
+.obj-num-badge{width:22px;height:22px;border-radius:6px;background:color-mix(in srgb,var(--oc) 15%,transparent);color:var(--oc);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.obj-title-input{flex:1;background:transparent;border:none;outline:none;font-size:11px;font-weight:700;color:var(--text);font-family:inherit;}
+.obj-actions{display:flex;gap:6px;}
+.obj-action-btn{font-size:12px;color:var(--text-dim);cursor:pointer;padding:2px;}
+.obj-action-btn:hover{color:var(--text);}
+.obj-del-btn{font-size:12px;color:var(--red);cursor:pointer;padding:2px;opacity:.6;}
+.obj-del-btn:hover{opacity:1;}
+
+/* COLOR PICKER */
+.color-row{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.color-label{font-size:9px;color:var(--text-sub);font-weight:600;width:40px;}
+.color-opts{display:flex;gap:6px;}
+.color-dot{width:18px;height:18px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:.15s;}
+.color-dot.sel{border-color:var(--text);transform:scale(1.15);}
+
+/* KR LIST inside editor */
+.kr-editor-list{padding:8px 0;}
+.kr-editor-item{padding:7px 12px;border-bottom:1px solid rgba(31,45,69,.4);display:flex;align-items:flex-start;gap:7px;}
+.kr-editor-item:last-child{border-bottom:none;}
+.kr-drag{font-size:12px;color:var(--text-dim);cursor:grab;padding-top:2px;}
+.kr-letter-badge{width:18px;height:18px;border-radius:5px;background:var(--surface2);color:var(--text-sub);font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;}
+.kr-inputs{flex:1;display:flex;flex-direction:column;gap:5px;}
+.kr-desc-input{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:6px 8px;font-size:10px;color:var(--text);font-family:inherit;resize:none;width:100%;}
+.kr-desc-input:focus{outline:none;border-color:var(--oc,var(--primary));}
+.kr-meta-row{display:flex;gap:5px;align-items:center;}
+.kr-type-sel{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:9px;color:var(--text-sub);font-family:inherit;cursor:pointer;}
+.kr-target-input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:9px;color:var(--text);font-family:inherit;width:70px;}
+.kr-unit-input{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:9px;color:var(--text);font-family:inherit;width:60px;}
+.kr-del{font-size:12px;color:var(--red);cursor:pointer;opacity:.5;padding:2px;flex-shrink:0;}
+.kr-del:hover{opacity:1;}
+
+/* ADD KR button */
+.btn-add-kr{width:calc(100% - 24px);margin:6px 12px 10px;padding:7px;background:transparent;border:1.5px dashed var(--border);border-radius:8px;font-size:9px;font-weight:700;color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;}
+.btn-add-kr:hover{border-color:var(--oc,var(--primary));color:var(--oc,var(--primary));}
+
+/* ADD OBJECTIVE */
+.btn-add-obj{margin:0 16px 12px;width:calc(100% - 32px);padding:11px;background:transparent;border:1.5px dashed var(--border);border-radius:12px;font-size:10px;font-weight:700;color:var(--text-sub);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+.btn-add-obj:hover{border-color:var(--primary);color:var(--primary);}
+
+/* SAVE ALL */
+.save-bar{margin:4px 16px 0;padding:12px;background:linear-gradient(135deg,var(--amber),#FF8C00);border-radius:12px;font-size:12px;font-weight:800;color:#000;text-align:center;cursor:pointer;}
+.save-note{text-align:center;font-size:9px;color:var(--text-dim);padding:6px 16px 4px;}
+
+/* BOTTOM NAV */
+.bnav{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:6px 0 14px;}
+.ni{display:flex;flex-direction:column;align-items:center;gap:2px;flex:1;}
+.ni-icon{font-size:18px;}
+.ni-lbl{font-size:8px;font-weight:600;color:var(--text-sub);}
+
+/* DIVIDER */
+.divider{height:1px;background:var(--border);margin:8px 16px;}
+
+/* DELETE CONFIRM MODAL */
+.modal-overlay{position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:flex-end;z-index:20;}
+.modal-sheet{width:100%;background:var(--surface);border-radius:18px 18px 0 0;padding:20px 18px 32px;border-top:1px solid var(--border);}
+.modal-title{font-size:14px;font-weight:800;color:var(--text);margin-bottom:6px;}
+.modal-desc{font-size:11px;color:var(--text-sub);margin-bottom:18px;line-height:1.5;}
+.modal-warning{background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.2);border-radius:10px;padding:10px 12px;font-size:10px;color:var(--red);margin-bottom:16px;line-height:1.5;}
+.btn-modal-del{width:100%;padding:12px;background:var(--red);border:none;border-radius:11px;font-size:13px;font-weight:800;color:#fff;cursor:pointer;margin-bottom:8px;}
+.btn-modal-cancel{width:100%;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:11px;font-size:13px;font-weight:700;color:var(--text-sub);cursor:pointer;}
+
+/* PHONE LABEL */
+.phone-label{text-align:center;font-size:10px;font-weight:700;color:var(--text-sub);margin-bottom:10px;letter-spacing:.5px;text-transform:uppercase;}
+</style>
+</head>
+<body>
+
+<p class="page-title">MSW ePlant v4.0</p>
+<p class="page-sub">OKR Structure Editor</p>
+<p class="page-desc">Setting → Update OKR → Tab "Edit Struktur"<br>Bisa tambah/edit/hapus Objective &amp; KR, ganti tahun, ubah target</p>
+
+<div class="wrap">
+
+<!-- ════ PHONE 1: OKR EDITOR MAIN ════ -->
+<div style="display:flex;flex-direction:column;align-items:center;">
+<div class="phone-label">Screen 1 — OKR Editor</div>
+<div class="phone">
+  <div class="status-bar"><span>09:15</span><span>📶 🔋</span></div>
+  <div class="screen">
+
+    <div class="top-bar">
+      <div class="top-left">
+        <div class="top-logo">MSW</div>
+        <div>
+          <div class="top-title">OKR Editor</div>
+          <div class="top-sub-label">Setting → Update OKR → Edit Struktur</div>
+        </div>
+      </div>
+      <div class="icon-btn">❓</div>
+    </div>
+
+    <!-- Year Selector -->
+    <div style="padding:12px 16px 0;">
+      <div style="font-size:9px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Tahun OKR</div>
+      <div class="year-selector">
+        <div class="year-btn">‹</div>
+        <div class="year-display">
+          <div class="year-val">2026</div>
+          <div class="year-status">● Tahun Aktif</div>
+        </div>
+        <div class="year-btn">›</div>
+      </div>
+      <!-- past years chips -->
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <div style="font-size:9px;font-weight:600;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);padding:3px 10px;border-radius:8px;">2024 ↗</div>
+        <div style="font-size:9px;font-weight:600;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);padding:3px 10px;border-radius:8px;">2025 ↗</div>
+        <div class="btn-new-year" style="margin:0;flex:1;padding:4px 10px;font-size:9px;">＋ Tahun Baru</div>
+      </div>
+    </div>
+
+    <div class="divider" style="margin-top:12px;"></div>
+
+    <!-- Objectives -->
+    <div class="sec-lbl">
+      <span>Objectives &amp; Key Results</span>
+      <span class="sec-action">＋ Objective</span>
+    </div>
+
+    <!-- OBJECTIVE 1 -->
+    <div class="obj-editor" style="--oc:var(--o1)">
+      <div class="obj-editor-header">
+        <span class="obj-drag">⠿</span>
+        <div class="obj-num-badge">1</div>
+        <input class="obj-title-input" value="Deliver Reliable and Profitable Performance">
+        <div class="obj-actions">
+          <span class="obj-action-btn">🎨</span>
+          <span class="obj-del-btn">🗑</span>
+        </div>
+      </div>
+      <!-- Color picker -->
+      <div class="color-row">
+        <span class="color-label">Warna:</span>
+        <div class="color-opts">
+          <div class="color-dot sel" style="background:#00C2FF;border-color:#fff;"></div>
+          <div class="color-dot" style="background:#C084FC;"></div>
+          <div class="color-dot" style="background:#00E5A0;"></div>
+          <div class="color-dot" style="background:#FFB020;"></div>
+          <div class="color-dot" style="background:#FF4D6A;"></div>
+          <div class="color-dot" style="background:#F472B6;"></div>
+        </div>
+      </div>
+      <!-- KR list -->
+      <div class="kr-editor-list">
+
+        <div class="kr-editor-item">
+          <span class="kr-drag">⠿</span>
+          <div class="kr-letter-badge">a</div>
+          <div class="kr-inputs">
+            <textarea class="kr-desc-input" rows="2">Achieve NPAT: USD 7.80 million</textarea>
+            <div class="kr-meta-row">
+              <select class="kr-type-sel"><option selected="">Numerik</option><option>Kualitatif</option><option>Binary</option></select>
+              <input class="kr-target-input" value="7.80" placeholder="Target">
+              <input class="kr-unit-input" value="USD M" placeholder="Satuan">
+            </div>
+          </div>
+          <span class="kr-del">✕</span>
+        </div>
+
+        <div class="kr-editor-item">
+          <span class="kr-drag">⠿</span>
+          <div class="kr-letter-badge">b</div>
+          <div class="kr-inputs">
+            <textarea class="kr-desc-input" rows="1">Achieve EAF: 88%</textarea>
+            <div class="kr-meta-row">
+              <select class="kr-type-sel"><option selected="">Numerik</option><option>Kualitatif</option><option>Binary</option></select>
+              <input class="kr-target-input" value="88" placeholder="Target">
+              <input class="kr-unit-input" value="%" placeholder="Satuan">
+            </div>
+          </div>
+          <span class="kr-del">✕</span>
+        </div>
+
+        <div class="kr-editor-item">
+          <span class="kr-drag">⠿</span>
+          <div class="kr-letter-badge">c</div>
+          <div class="kr-inputs">
+            <textarea class="kr-desc-input" rows="2">Achieve SAIDI ≤1.0 hour and SAIFI ≤1.0 frequency</textarea>
+            <div class="kr-meta-row">
+              <select class="kr-type-sel"><option>Numerik</option><option selected="">Kualitatif</option><option>Binary</option></select>
+              <input class="kr-target-input" value="≤1.0" placeholder="Target">
+              <input class="kr-unit-input" value="jam/freq" placeholder="Satuan">
+            </div>
+          </div>
+          <span class="kr-del">✕</span>
+        </div>
+
+        <div class="kr-editor-item">
+          <span class="kr-drag">⠿</span>
+          <div class="kr-letter-badge">d</div>
+          <div class="kr-inputs">
+            <textarea class="kr-desc-input" rows="2">Solar PV Kelanis production: 746 MWh</textarea>
+            <div class="kr-meta-row">
+              <select class="kr-type-sel"><option selected="">Numerik</option><option>Kualitatif</option><option>Binary</option></select>
+              <input class="kr-target-input" value="746" placeholder="Target">
+              <input class="kr-unit-input" value="MWh" placeholder="Satuan">
+            </div>
+          </div>
+          <span class="kr-del">✕</span>
+        </div>
+
+        <div class="kr-editor-item">
+          <span class="kr-drag">⠿</span>
+          <div class="kr-letter-badge">e</div>
+          <div class="kr-inputs">
+            <textarea class="kr-desc-input" rows="2">Initiate 3 cost optimization initiatives</textarea>
+            <div class="kr-meta-row">
+              <select class="kr-type-sel"><option selected="">Numerik</option><option>Kualitatif</option><option>Binary</option></select>
+              <input class="kr-target-input" value="3" placeholder="Target">
+              <input class="kr-unit-input" value="inisiatif" placeholder="Satuan">
+            </div>
+          </div>
+          <span class="kr-del">✕</span>
+        </div>
+
+      </div>
+      <button class="btn-add-kr" style="--oc:var(--o1)">＋ Tambah Key Result</button>
+    </div>
+
+    <!-- OBJECTIVE 2 -->
+    <div class="obj-editor" style="--oc:var(--o2)">
+      <div class="obj-editor-header">
+        <span class="obj-drag">⠿</span>
+        <div class="obj-num-badge">2</div>
+        <input class="obj-title-input" value="Execute Value-Driven Project Development">
+        <div class="obj-actions">
+          <span class="obj-action-btn">🎨</span>
+          <span class="obj-del-btn">🗑</span>
+        </div>
+      </div>
+      <div class="color-row">
+        <span class="color-label">Warna:</span>
+        <div class="color-opts">
+          <div class="color-dot" style="background:#00C2FF;"></div>
+          <div class="color-dot sel" style="background:#C084FC;border-color:#fff;"></div>
+          <div class="color-dot" style="background:#00E5A0;"></div>
+          <div class="color-dot" style="background:#FFB020;"></div>
+          <div class="color-dot" style="background:#FF4D6A;"></div>
+          <div class="color-dot" style="background:#F472B6;"></div>
+        </div>
+      </div>
+      <div class="kr-editor-list">
+        <div class="kr-editor-item">
+          <span class="kr-drag">⠿</span>
+          <div class="kr-letter-badge">a</div>
+          <div class="kr-inputs">
+            <textarea class="kr-desc-input" rows="2">Optimus — Construction and implementation-stage</textarea>
+            <div class="kr-meta-row">
+              <select class="kr-type-sel"><option>Numerik</option><option selected="">Kualitatif</option><option>Binary</option></select>
+              <input class="kr-target-input" value="Done" placeholder="Target">
+              <input class="kr-unit-input" value="fase" placeholder="Satuan">
+            </div>
+          </div>
+          <span class="kr-del">✕</span>
+        </div>
+        <div class="kr-editor-item">
+          <span class="kr-drag">⠿</span>
+          <div class="kr-letter-badge">b</div>
+          <div class="kr-inputs">
+            <textarea class="kr-desc-input" rows="2">Explore projects for green initiatives and electrification</textarea>
+            <div class="kr-meta-row">
+              <select class="kr-type-sel"><option>Numerik</option><option selected="">Kualitatif</option><option>Binary</option></select>
+              <input class="kr-target-input" value="3" placeholder="Target">
+              <input class="kr-unit-input" value="proyek" placeholder="Satuan">
+            </div>
+          </div>
+          <span class="kr-del">✕</span>
+        </div>
+      </div>
+      <button class="btn-add-kr" style="--oc:var(--o2)">＋ Tambah Key Result</button>
+    </div>
+
+    <!-- OBJECTIVE 3 (collapsed preview) -->
+    <div class="obj-editor" style="--oc:var(--o3)">
+      <div class="obj-editor-header">
+        <span class="obj-drag">⠿</span>
+        <div class="obj-num-badge">3</div>
+        <input class="obj-title-input" value="Strengthen Sustainability and Compliance">
+        <div class="obj-actions">
+          <span class="obj-action-btn">🎨</span>
+          <span class="obj-del-btn">🗑</span>
+        </div>
+      </div>
+      <div class="color-row">
+        <span class="color-label">Warna:</span>
+        <div class="color-opts">
+          <div class="color-dot" style="background:#00C2FF;"></div>
+          <div class="color-dot" style="background:#C084FC;"></div>
+          <div class="color-dot sel" style="background:#00E5A0;border-color:#fff;"></div>
+          <div class="color-dot" style="background:#FFB020;"></div>
+          <div class="color-dot" style="background:#FF4D6A;"></div>
+          <div class="color-dot" style="background:#F472B6;"></div>
+        </div>
+      </div>
+      <div style="padding:8px 12px;font-size:9px;color:var(--text-sub);">5 Key Results · tap untuk expand</div>
+      <button class="btn-add-kr" style="--oc:var(--o3)">＋ Tambah Key Result</button>
+    </div>
+
+    <!-- Add Objective -->
+    <button class="btn-add-obj">＋ Tambah Objective Baru</button>
+
+    <!-- Save bar -->
+    <div class="save-bar">💾 Simpan Perubahan Struktur OKR</div>
+    <div class="save-note">Perubahan struktur akan langsung update tampilan OKR semua user</div>
+
+    <!-- Bottom Nav -->
+    <div class="bnav">
+      <div class="ni"><span class="ni-icon">🏠</span><span class="ni-lbl">Home</span></div>
+      <div class="ni"><span class="ni-icon">⚡</span><span class="ni-lbl">Operation</span></div>
+      <div class="ni"><span class="ni-icon">🎯</span><span class="ni-lbl">OKR</span></div>
+      <div class="ni"><span class="ni-icon">⚙️</span><span class="ni-lbl" style="color:var(--amber)">Setting</span></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ════ PHONE 2: NEW YEAR + DELETE CONFIRM ════ -->
+<div style="display:flex;flex-direction:column;align-items:center;">
+<div class="phone-label">Screen 2 — Tahun Baru &amp; Hapus</div>
+<div class="phone">
+  <div class="status-bar"><span>09:15</span><span>📶 🔋</span></div>
+  <div class="screen" style="position:relative;">
+
+    <div class="top-bar">
+      <div class="top-left">
+        <div class="top-logo">MSW</div>
+        <div>
+          <div class="top-title">OKR Editor</div>
+          <div class="top-sub-label">Tambah Tahun Baru</div>
+        </div>
+      </div>
+      <div class="icon-btn">✕</div>
+    </div>
+
+    <!-- New Year form -->
+    <div style="padding:16px;">
+      <div style="font-size:13px;font-weight:800;color:var(--text);margin-bottom:4px;">🗓 Buat OKR Tahun Baru</div>
+      <div style="font-size:10px;color:var(--text-sub);margin-bottom:16px;line-height:1.5;">Pilih apakah ingin mulai kosong atau salin struktur dari tahun sebelumnya.</div>
+
+      <!-- Year input -->
+      <div style="font-size:9px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;">Tahun OKR Baru</div>
+      <div style="background:var(--surface);border:1.5px solid var(--primary);border-radius:10px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+        <span style="font-size:16px;">📅</span>
+        <span style="font-size:18px;font-weight:900;color:var(--primary);">2027</span>
+      </div>
+
+      <!-- Copy from? -->
+      <div style="font-size:9px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;">Salin dari tahun sebelumnya?</div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+
+        <div style="background:var(--surface);border:1.5px solid var(--primary);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <div style="width:16px;height:16px;border-radius:50%;border:2px solid var(--primary);background:var(--primary);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <div style="width:6px;height:6px;background:#fff;border-radius:50%;"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text);">Salin struktur OKR 2026</div>
+            <div style="font-size:9px;color:var(--text-sub);">Salin semua Objective &amp; KR, reset progress ke 0</div>
+          </div>
+        </div>
+
+        <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;">
+          <div style="width:16px;height:16px;border-radius:50%;border:2px solid var(--border);flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--text);">Mulai dari kosong</div>
+            <div style="font-size:9px;color:var(--text-sub);">Input Objective &amp; KR baru dari awal</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- What happens to 2026 -->
+      <div style="background:rgba(0,194,255,.06);border:1px solid rgba(0,194,255,.15);border-radius:10px;padding:10px 12px;margin-bottom:16px;">
+        <div style="font-size:9px;font-weight:700;color:var(--primary);margin-bottom:4px;">ℹ️ OKR 2026</div>
+        <div style="font-size:9px;color:var(--text-sub);line-height:1.5;">OKR 2026 tetap tersimpan dan bisa dilihat via selektor tahun. Tidak ada data yang dihapus.</div>
+      </div>
+
+      <button style="width:100%;padding:12px;background:linear-gradient(135deg,var(--primary),#0072FF);border:none;border-radius:11px;font-size:12px;font-weight:800;color:#fff;cursor:pointer;margin-bottom:8px;">Buat OKR 2027 →</button>
+      <button style="width:100%;padding:12px;background:transparent;border:1px solid var(--border);border-radius:11px;font-size:12px;font-weight:700;color:var(--text-sub);cursor:pointer;">Batal</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Revisi note -->
+    <div style="padding:12px 16px;">
+      <div style="font-size:11px;font-weight:800;color:var(--text);margin-bottom:8px;">📝 Catatan Revisi OKR</div>
+      <div style="font-size:10px;color:var(--text-sub);line-height:1.6;margin-bottom:10px;">Setiap kali struktur OKR disimpan, sistem akan mencatat riwayat perubahan secara otomatis.</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;">
+        <div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:9px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:.5px;">Riwayat Perubahan 2026</div>
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(31,45,69,.5);">
+          <div style="font-size:10px;font-weight:700;color:var(--text);">Revisi target Solar PV</div>
+          <div style="font-size:9px;color:var(--text-sub);">14 Jul 2026 · 09:12 · Admin</div>
+          <div style="font-size:9px;color:var(--text-sub);">KR 1d: 800 MWh → 746 MWh</div>
+        </div>
+        <div style="padding:8px 12px;border-bottom:1px solid rgba(31,45,69,.5);">
+          <div style="font-size:10px;font-weight:700;color:var(--text);">Tambah KR 1e</div>
+          <div style="font-size:9px;color:var(--text-sub);">2 Mar 2026 · 14:30 · Admin</div>
+          <div style="font-size:9px;color:var(--text-sub);">Initiate 3 cost optimization initiatives</div>
+        </div>
+        <div style="padding:8px 12px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text);">OKR 2026 dibuat</div>
+          <div style="font-size:9px;color:var(--text-sub);">3 Jan 2026 · 08:00 · Admin</div>
+          <div style="font-size:9px;color:var(--text-sub);">3 Objectives, 10 Key Results</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <div class="bnav">
+      <div class="ni"><span class="ni-icon">🏠</span><span class="ni-lbl">Home</span></div>
+      <div class="ni"><span class="ni-icon">⚡</span><span class="ni-lbl">Operation</span></div>
+      <div class="ni"><span class="ni-icon">🎯</span><span class="ni-lbl">OKR</span></div>
+      <div class="ni"><span class="ni-icon">⚙️</span><span class="ni-lbl" style="color:var(--amber)">Setting</span></div>
+    </div>
+
+    <!-- DELETE MODAL OVERLAY -->
+    <div class="modal-overlay">
+      <div class="modal-sheet">
+        <div class="modal-title">🗑 Hapus Objective?</div>
+        <div class="modal-desc">"Execute Value-Driven Project Development" dan semua Key Results di dalamnya akan dihapus permanen.</div>
+        <div class="modal-warning">⚠️ Seluruh data progress KR dalam Objective ini juga akan terhapus dan tidak bisa dikembalikan.</div>
+        <button class="btn-modal-del">Ya, Hapus Objective ini</button>
+        <button class="btn-modal-cancel">Batal</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+</div><!-- /wrap -->
+
+
+</body></html>
