@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:msw_eplant/constants/theme.dart';
-import 'package:msw_eplant/widgets/password_gate.dart';
+import 'package:msw_eplant/services/auth_service.dart';
 
 class SetPasswordPage extends StatefulWidget {
   const SetPasswordPage({super.key});
@@ -10,7 +10,18 @@ class SetPasswordPage extends StatefulWidget {
 }
 
 class _SetPasswordPageState extends State<SetPasswordPage> {
-  bool _authenticated = false;
+  final Map<String, TextEditingController> _ctrls = {};
+
+  TextEditingController _ctrl(String key) {
+    if (_ctrls.containsKey(key)) return _ctrls[key]!;
+    return _ctrls[key] = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctrls.values) c.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,24 +42,40 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
           ),
           title: const Text('Set Password Login'),
         ),
-        // body: _authenticated ? _buildPasswordList() : _buildGate(),
-        body:  _buildPasswordList() 
+        body: _buildPasswordList(),
       ),
     );
   }
 
-  Widget _buildGate() {
-    return SingleChildScrollView(
-      child: PasswordGate(
-        title: 'Set Password Login',
-        subtitle: 'Menu ini memerlukan password Admin untuk\nmengubah password login semua role.',
-        icon: '\uD83D\uDD11',
-        color: AppColors.purple,
-        roleLabel: 'Admin Password',
-        roleIcon: '\uD83D\uDD11',
-        roleDescription: 'Ubah password login semua role app',
-        onUnlock: () => setState(() => _authenticated = true),
-        onCancel: () => Navigator.pop(context),
+  Future<void> _savePassword(String scope, String label) async {
+    final newPass = _ctrl('${scope}_new').text.trim();
+    final confirm = _ctrl('${scope}_confirm').text.trim();
+
+    if (newPass.isEmpty || confirm.isEmpty) {
+      _showMessage('Password baru dan konfirmasi harus diisi', AppColors.danger);
+      return;
+    }
+    if (newPass != confirm) {
+      _showMessage('Password dan konfirmasi tidak sama', AppColors.danger);
+      return;
+    }
+    if (newPass.length < 4) {
+      _showMessage('Password minimal 4 karakter', AppColors.danger);
+      return;
+    }
+
+    await AuthService.setPassword(scope, newPass);
+    _ctrl('${scope}_new').clear();
+    _ctrl('${scope}_confirm').clear();
+    if (mounted) _showMessage('Password $label disimpan', AppColors.general);
+  }
+
+  void _showMessage(String text, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text, style: const TextStyle(color: Colors.white)),
+        backgroundColor: color,
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -67,7 +94,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
               borderRadius: BorderRadius.circular(10),
             ),
             child: const Text(
-              'Password login disimpan di Firestore dan berlaku untuk semua device. Perubahan langsung aktif tanpa perlu update app.',
+              'Password login disimpan di perangkat (SharedPreferences). Setiap scope memiliki password sendiri dan langsung aktif tanpa perlu update app.',
               style: TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.6),
             ),
           ),
@@ -79,6 +106,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
             ),
           ),
           _buildRolePasswordCard(
+            scope: 'operation',
             icon: '\u26A1',
             label: 'Operation',
             color: AppColors.primary,
@@ -86,6 +114,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
             lastChanged: '3 Jan 2026',
           ),
           _buildRolePasswordCard(
+            scope: 'maintenance',
             icon: '\uD83D\uDD27',
             label: 'Maintenance',
             color: AppColors.maintenance,
@@ -93,18 +122,19 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
             lastChanged: '3 Jan 2026',
           ),
           _buildRolePasswordCard(
+            scope: 'okr_editor',
             icon: '\uD83C\uDFAF',
             label: 'OKR Editor',
             color: AppColors.general,
-            hint: 'Password khusus untuk membuka OKR Editor di Setting. Terpisah dari password login role.',
+            hint: 'Password khusus untuk membuka OKR Editor di Admin Menu. Terpisah dari password login role.',
             lastChanged: '3 Jan 2026',
           ),
           _buildRolePasswordCard(
+            scope: 'admin',
             icon: '\uD83D\uDEE1',
             label: 'Admin Master',
             color: AppColors.purple,
-            hint:
-                'Password tertinggi \u2014 untuk membuka halaman Set Password ini. Simpan dengan aman, hanya untuk IC&IT Supervisor.',
+            hint: 'Password tertinggi \u2014 untuk membuka Set Password Login ini. Simpan dengan aman, hanya untuk IC&IT Supervisor.',
             lastChanged: '3 Jan 2026',
             isMaster: true,
           ),
@@ -115,6 +145,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
   }
 
   Widget _buildRolePasswordCard({
+    required String scope,
     required String icon,
     required String label,
     required Color color,
@@ -180,24 +211,14 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text('\uD83D\uDD50', style: TextStyle(fontSize: 14, color: AppColors.textDim)),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Terakhir diubah: $lastChanged \u00B7 Admin',
-                      style: const TextStyle(fontSize: 14, color: AppColors.textDim),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 Text(hint, style: const TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.4)),
                 const SizedBox(height: 10),
-                _buildInputGroup('Password Baru', 'Masukkan password baru'),
+                _buildInputGroup('${scope}_new', 'Password Baru', 'Masukkan password baru'),
                 const SizedBox(height: 10),
-                _buildInputGroup('Konfirmasi Password', 'Ulangi password baru'),
+                _buildInputGroup('${scope}_confirm', 'Konfirmasi Password', 'Ulangi password baru'),
                 const SizedBox(height: 8),
                 GestureDetector(
+                  onTap: () => _savePassword(scope, label),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 9),
@@ -221,7 +242,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
     );
   }
 
-  Widget _buildInputGroup(String label, String hint) {
+  Widget _buildInputGroup(String key, String label, String hint) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -243,6 +264,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
             borderRadius: BorderRadius.circular(11),
           ),
           child: TextField(
+            controller: _ctrl(key),
             obscureText: true,
             style: const TextStyle(color: AppColors.text, fontWeight: FontWeight.w700, letterSpacing: 2),
             decoration: InputDecoration(

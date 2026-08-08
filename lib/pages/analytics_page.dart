@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -173,29 +174,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     _selectedParams.removeWhere((sp) => !params.contains(sp.param));
   }
 
-  List<FlSpot> _getSpotsForParam(ParamOption param) {
-    final tableData = _cachedData[param.tableKey];
-    if (tableData == null || tableData.length < 2) return [];
-
-    List<FlSpot> spots = [];
-    int dataRows = tableData.length - 1;
-    int timeRows = _datetimes.length;
-    int count = dataRows < timeRows ? dataRows : timeRows;
-
-    for (int i = 0; i < count; i++) {
-      final row = tableData[i + 1];
-      if (param.columnIndex >= row.length) continue;
-
-      double? yVal = double.tryParse(row[param.columnIndex].toString());
-      if (yVal == null) continue;
-
-      double xVal = _datetimes[i].millisecondsSinceEpoch.toDouble();
-      spots.add(FlSpot(xVal, yVal));
-    }
-
-    return spots;
-  }
-
   void _showParameterPicker() {
     final available = _availableParams
         .where((p) => !_selectedParams.any((sp) => sp.param == p))
@@ -237,7 +215,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                     ),
                   ),
                   Text(
-                    "Select Parameter 📊 (${_selectedParams.length}/4)",
+                    "Select Parameter 📊 (${_selectedParams.length}/3)",
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -246,7 +224,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "Max 4 parameters. Params at index 0,1 use left axis; 2,3 use right axis.",
+                    "Max 3 parameters. Params at index 0,1 use left axis; 2 use right axis.",
                     style: TextStyle(fontSize: 16, color: Colors.grey[400]),
                   ),
                   const SizedBox(height: 16),
@@ -276,10 +254,10 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                                   ),
                                   trailing: const Icon(Icons.add_circle_outline, color: Colors.cyanAccent, size: 20),
                                   onTap: () {
-                                    if (_selectedParams.length >= 4) {
+                                    if (_selectedParams.length >= 3) {
                                       ScaffoldMessenger.of(context).showSnackBar(
                                         const SnackBar(
-                                          content: Text("Maximum 4 parameters allowed"),
+                                          content: Text("Maximum 3 parameters allowed"),
                                           backgroundColor: Colors.redAccent,
                                         ),
                                       );
@@ -333,6 +311,17 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           centerTitle: true,
+          actions: [
+            if (_selectedParams.isNotEmpty && !_isLoading)
+              IconButton(
+                icon: Icon(
+                  Icons.fullscreen,
+                  color: Colors.cyanAccent.withValues(alpha: 0.9),
+                ),
+                tooltip: 'Fullscreen',
+                onPressed: _openFullscreen,
+              ),
+          ],
         ),
         body: _isLoading
             ? const Center(
@@ -359,7 +348,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
 
   Widget _buildParameterSelector() {
     return GestureDetector(
-      onTap: _selectedParams.length < 4 ? _showParameterPicker : null,
+      onTap: _selectedParams.length < 3 ? _showParameterPicker : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
@@ -371,21 +360,21 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           children: [
             Icon(
               Icons.add_chart,
-              color: _selectedParams.length < 4 ? Colors.cyanAccent : Colors.grey,
+              color: _selectedParams.length < 3 ? Colors.cyanAccent : Colors.grey,
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 _selectedParams.isEmpty
-                    ? "Tap to add parameter (max 4)"
-                    : "Add parameter (${_selectedParams.length}/4)",
+                    ? "Tap to add parameter (max 3)"
+                    : "Add parameter (${_selectedParams.length}/3)",
                 style: TextStyle(
                   fontSize: 12,
-                  color: _selectedParams.length < 4 ? Colors.white : Colors.grey,
+                  color: _selectedParams.length < 3 ? Colors.white : Colors.grey,
                 ),
               ),
             ),
-            if (_selectedParams.length < 4)
+            if (_selectedParams.length < 3)
               const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
           ],
         ),
@@ -404,7 +393,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         ),
         child: const Center(
           child: Text(
-            "No parameters selected.\nTap above to add 1\u20134 parameters.",
+            "No parameters selected.\nTap above to add 1\u20133 parameters.",
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey, fontSize: 16),
           ),
@@ -450,12 +439,78 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   }
 
   Widget _buildChart() {
-    if (_selectedParams.isEmpty || _datetimes.isEmpty) {
+    return AnalyticsChart(
+      selectedParams: _selectedParams,
+      datetimes: _datetimes,
+      cachedData: _cachedData,
+      decimalPlaces: _decimalPlaces,
+      colorPalette: _colorPalette,
+    );
+  }
+
+  void _openFullscreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullscreenAnalyticsPage(
+          selectedParams: _selectedParams,
+          datetimes: _datetimes,
+          cachedData: _cachedData,
+          decimalPlaces: _decimalPlaces,
+          colorPalette: _colorPalette,
+        ),
+      ),
+    );
+  }
+}
+
+class AnalyticsChart extends StatelessWidget {
+  final List<SelectedParam> selectedParams;
+  final List<DateTime> datetimes;
+  final Map<String, List<List>> cachedData;
+  final int decimalPlaces;
+  final List<Color> colorPalette;
+
+  const AnalyticsChart({
+    super.key,
+    required this.selectedParams,
+    required this.datetimes,
+    required this.cachedData,
+    required this.decimalPlaces,
+    required this.colorPalette,
+  });
+
+  List<FlSpot> _getSpotsForParam(ParamOption param) {
+    final tableData = cachedData[param.tableKey];
+    if (tableData == null || tableData.length < 2) return [];
+
+    List<FlSpot> spots = [];
+    int dataRows = tableData.length - 1;
+    int timeRows = datetimes.length;
+    int count = dataRows < timeRows ? dataRows : timeRows;
+
+    for (int i = 0; i < count; i++) {
+      final row = tableData[i + 1];
+      if (param.columnIndex >= row.length) continue;
+
+      double? yVal = double.tryParse(row[param.columnIndex].toString());
+      if (yVal == null) continue;
+
+      double xVal = datetimes[i].millisecondsSinceEpoch.toDouble();
+      spots.add(FlSpot(xVal, yVal));
+    }
+
+    return spots;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (selectedParams.isEmpty || datetimes.isEmpty) {
       return Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: Colors.black.withOpacity(0.4),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          color: Colors.black.withValues(alpha: 0.4),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
         ),
         child: const Center(
           child: Column(
@@ -473,7 +528,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       );
     }
 
-    List<LineChartBarData> lineBars = [];
+    List<SelectedParam> rawParams = [];
+    List<List<FlSpot>> rawSpots = [];
     double globalMinX = double.infinity;
     double globalMaxX = double.negativeInfinity;
 
@@ -485,8 +541,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     bool hasLeft = false;
     bool hasRight = false;
 
-    for (int i = 0; i < _selectedParams.length; i++) {
-      final sp = _selectedParams[i];
+    for (int i = 0; i < selectedParams.length; i++) {
+      final sp = selectedParams[i];
       final spots = _getSpotsForParam(sp.param);
       if (spots.isEmpty) continue;
 
@@ -504,20 +560,11 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
         }
       }
 
-      lineBars.add(LineChartBarData(
-        spots: spots,
-        isCurved: true,
-        color: sp.color,
-        barWidth: 2.5,
-        dotData: const FlDotData(show: false),
-        belowBarData: BarAreaData(
-          show: true,
-          color: sp.color.withOpacity(0.05),
-        ),
-      ));
+      rawParams.add(sp);
+      rawSpots.add(spots);
     }
 
-    if (lineBars.isEmpty) {
+    if (rawSpots.isEmpty) {
       return const Center(
         child: Text("No data available for selected parameters.", style: TextStyle(color: Colors.grey)),
       );
@@ -535,6 +582,33 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     double rightMax = rightMaxY + rightRange * 0.1;
     if (rightMin < 0 && rightMinY >= 0) rightMin = 0;
 
+    final double windowMin = hasLeft ? leftMin : rightMin;
+    final double windowMax = hasLeft ? leftMax : rightMax;
+
+    double chartToRight(double chart) =>
+        rightMin + (chart - windowMin) / (windowMax - windowMin) * (rightMax - rightMin);
+    double rightToChart(double raw) =>
+        windowMin + (raw - rightMin) / (rightMax - rightMin) * (windowMax - windowMin);
+
+    List<LineChartBarData> lineBars = [];
+    for (int i = 0; i < rawSpots.length; i++) {
+      final sp = rawParams[i];
+      final spots = sp.useRightAxis
+          ? rawSpots[i].map((s) => FlSpot(s.x, rightToChart(s.y))).toList()
+          : rawSpots[i];
+      lineBars.add(LineChartBarData(
+        spots: spots,
+        isCurved: true,
+        color: sp.color,
+        barWidth: 2.5,
+        dotData: const FlDotData(show: false),
+        belowBarData: BarAreaData(
+          show: true,
+          color: sp.color.withOpacity(0.05),
+        ),
+      ));
+    }
+
     return Container(
       padding: const EdgeInsets.only(top: 8, right: 8, bottom: 4),
       decoration: BoxDecoration(
@@ -544,8 +618,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       ),
       child: LineChart(
         LineChartData(
-          minY: hasLeft ? leftMin : (hasRight ? rightMin : 0),
-          maxY: hasLeft ? leftMax : (hasRight ? rightMax : 1),
+          minY: windowMin,
+          maxY: windowMax,
           minX: globalMinX,
           maxX: globalMaxX,
           lineTouchData: LineTouchData(
@@ -557,12 +631,14 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 return touchedSpots.map((spot) {
                   DateTime dt = DateTime.fromMillisecondsSinceEpoch(spot.x.toInt());
                   String timeStr = DateFormat("dd MMM HH:mm").format(dt);
-                  final sp = _selectedParams.length > spot.barIndex
-                      ? _selectedParams[spot.barIndex]
-                      : null;
+                  final sp =
+                      rawParams.length > spot.barIndex ? rawParams[spot.barIndex] : null;
                   String label = sp?.param.columnName ?? '';
+                  double yVal = (sp?.useRightAxis ?? false)
+                      ? chartToRight(spot.y)
+                      : spot.y;
                   return LineTooltipItem(
-                    "$label\n${spot.y.toStringAsFixed(_decimalPlaces)}\n$timeStr",
+                    "$label\n${yVal.toStringAsFixed(decimalPlaces)}\n$timeStr",
                     TextStyle(
                       color: sp?.color ?? Colors.white,
                       fontSize: 12,
@@ -581,8 +657,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 getTitlesWidget: (value, meta) => SideTitleWidget(
                   meta: meta,
                   child: Text(
-                    value.toStringAsFixed(_decimalPlaces > 1 ? 1 : _decimalPlaces),
-                    style: TextStyle(fontSize: 16, color: _colorPalette[0]),
+                    value.toStringAsFixed(decimalPlaces > 1 ? 1 : decimalPlaces),
+                    style: TextStyle(fontSize: 12, color: colorPalette[0]),
                   ),
                 ),
               ),
@@ -590,12 +666,13 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             rightTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: hasRight,
+                interval: hasRight ? (windowMax - windowMin) / 4 : null,
                 reservedSize: 48,
                 getTitlesWidget: (value, meta) => SideTitleWidget(
                   meta: meta,
                   child: Text(
-                    value.toStringAsFixed(_decimalPlaces > 1 ? 1 : _decimalPlaces),
-                    style: TextStyle(fontSize: 16, color: _colorPalette.length > 2 ? _colorPalette[2] : Colors.grey),
+                    chartToRight(value).toStringAsFixed(decimalPlaces > 1 ? 1 : decimalPlaces),
+                    style: TextStyle(fontSize: 12, color: colorPalette.length > 2 ? colorPalette[2] : Colors.grey),
                   ),
                 ),
               ),
@@ -631,6 +708,90 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             border: Border.all(color: Colors.white10),
           ),
           lineBarsData: lineBars,
+        ),
+      ),
+    );
+  }
+}
+
+class FullscreenAnalyticsPage extends StatefulWidget {
+  final List<SelectedParam> selectedParams;
+  final List<DateTime> datetimes;
+  final Map<String, List<List>> cachedData;
+  final int decimalPlaces;
+  final List<Color> colorPalette;
+
+  const FullscreenAnalyticsPage({
+    super.key,
+    required this.selectedParams,
+    required this.datetimes,
+    required this.cachedData,
+    required this.decimalPlaces,
+    required this.colorPalette,
+  });
+
+  @override
+  State<FullscreenAnalyticsPage> createState() => _FullscreenAnalyticsPageState();
+}
+
+class _FullscreenAnalyticsPageState extends State<FullscreenAnalyticsPage> {
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Text(
+                    'Analytics \u2014 Fullscreen (Landscape)',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: AnalyticsChart(
+                  selectedParams: widget.selectedParams,
+                  datetimes: widget.datetimes,
+                  cachedData: widget.cachedData,
+                  decimalPlaces: widget.decimalPlaces,
+                  colorPalette: widget.colorPalette,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

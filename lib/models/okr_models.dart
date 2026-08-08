@@ -1,14 +1,14 @@
 enum KrType { numeric, qualitative, binary }
 
-enum KrStatus { onTrack, atRisk, behind, na }
+enum KrStatus { onTrack, onProgress, behind, na }
 
 extension KrStatusX on KrStatus {
   String get label {
     switch (this) {
       case KrStatus.onTrack:
         return 'On Track';
-      case KrStatus.atRisk:
-        return 'At Risk';
+      case KrStatus.onProgress:
+        return 'On Progress';
       case KrStatus.behind:
         return 'Behind';
       case KrStatus.na:
@@ -20,8 +20,8 @@ extension KrStatusX on KrStatus {
     switch (this) {
       case KrStatus.onTrack:
         return '\u2705';
-      case KrStatus.atRisk:
-        return '\u26A0\uFE0F';
+      case KrStatus.onProgress:
+        return '\uD83D\uDD04';
       case KrStatus.behind:
         return '\uD83D\uDD34';
       case KrStatus.na:
@@ -57,8 +57,12 @@ class Objective {
     this.color = '#00C2FF',
     this.order = 0,
     List<KeyResult>? keyResults,
-  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+  })  : id = id ?? _genId(),
         keyResults = keyResults ?? [];
+
+  static String _genId() =>
+      '${DateTime.now().microsecondsSinceEpoch}_${_seq++}';
+  static int _seq = 0;
 
   double get progress {
     if (keyResults.isEmpty) return 0;
@@ -111,7 +115,7 @@ class KeyResult {
     this.notes = '',
     List<String>? phaseOptions,
     this.order = 0,
-  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+  })  : id = id ?? Objective._genId(),
         phaseOptions = phaseOptions ??
             ['Planning', 'Construction', 'Commissioning', 'Done'];
 
@@ -157,6 +161,6 @@ class OkrChangelog {
     required this.description,
     this.changedBy = 'Admin',
     DateTime? timestamp,
-  })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+  })  : id = id ?? Objective._genId(),
         timestamp = timestamp ?? DateTime.now();
 }

@@ -4,8 +4,7 @@ import 'package:msw_eplant/constants/theme.dart';
 import 'package:msw_eplant/models/role.dart';
 import 'package:msw_eplant/services/auth_service.dart';
 import 'package:msw_eplant/services/notification_service.dart';
-import 'package:msw_eplant/pages/okr_editor_page.dart';
-import 'package:msw_eplant/pages/set_password_page.dart';
+import 'package:msw_eplant/pages/admin_menu_page.dart';
 import 'package:msw_eplant/pages/manual_input_page.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -91,26 +90,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   _MenuItemData(
                     icon: '\uD83D\uDEE1',
                     label: 'Admin Menu',
-                    subtitle: 'Kelola struktur & progress OKR',
+                    subtitle: 'OKR Editor & Set Password Login',
                     color: AppColors.general,
-                    isProtected: true,
-                    onTap: _openOkrEditor,
-                  ),
-                  _MenuItemData(
-                    icon: '\uD83C\uDFAF',
-                    label: 'OKR Editor',
-                    subtitle: 'Kelola struktur & progress OKR',
-                    color: AppColors.general,
-                    isProtected: true,
-                    onTap: _openOkrEditor,
-                  ),
-                  _MenuItemData(
-                    icon: '\uD83D\uDD11',
-                    label: 'Set Password Login',
-                    subtitle: 'Ubah password semua role',
-                    color: AppColors.purple,
-                    isAdmin: true,
-                    onTap: _openSetPassword,
+                    isProtected: false, // Set to true if you want to require password for admin menu
+                    onTap: _openAdminMenu,
                   ),
                 ]),
                 _buildSectionLabel('Tentang'),
@@ -218,19 +201,6 @@ class _SettingsPageState extends State<SettingsPage> {
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.maintenance),
                       ),
                     ),
-                  if (i.isAdmin)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.purple.withOpacity(0.1),
-                        border: Border.all(color: AppColors.purple.withOpacity(0.2)),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        'ADMIN',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.purple),
-                      ),
-                    ),
                   const SizedBox(width: 6),
                   const Text('\u203A', style: TextStyle(fontSize: 14, color: AppColors.textDim)),
                 ],
@@ -295,10 +265,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildLogoutButton() {
     return GestureDetector(
-      onTap: () async {
-        await AuthService.clearSession();
-        if (context.mounted) Navigator.pushReplacementNamed(context, '/login');
-      },
+      onTap: _confirmLogout,
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
         padding: const EdgeInsets.symmetric(vertical: 11),
@@ -314,6 +281,39 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Logout?', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Yakin ingin keluar dari akun?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+    if (shouldLogout != true) return;
+
+    await AuthService.clearSession();
+    if (mounted) Navigator.pushReplacementNamed(context, '/login');
   }
 
   void _openFormatAngka() {
@@ -525,142 +525,12 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _openOkrEditor() {
-    _requirePassword(AppColors.general, 'OKR Editor', () {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const OkrEditorPage()));
-    });
-  }
-
-  void _openSetPassword() {
-    _requirePassword(AppColors.purple, 'Admin', () {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const SetPasswordPage()));
-    });
+  void _openAdminMenu() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminMenuPage()));
   }
 
   void _openManualInput() {
     Navigator.push(context, MaterialPageRoute(builder: (_) => const ManualInputPage()));
-  }
-
-  void _requirePassword(Color color, String label, VoidCallback onSuccess) {
-    final ctl = TextEditingController();
-    String? error;
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDlgState) {
-            return AlertDialog(
-              backgroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                      child: Center(
-                        child: Text(
-                          label == 'Admin' ? '\uD83D\uDEE1' : '\uD83C\uDFAF',
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Password $label',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Masukkan password untuk membuka menu ini',
-                      style: const TextStyle(fontSize: 14, color: AppColors.textSub),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.65),
-                        border: Border.all(color: error != null ? AppColors.danger : AppColors.border),
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: Row(
-                        children: [
-                          const Text('\uD83D\uDD11', style: TextStyle(fontSize: 14)),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextField(
-                              controller: ctl,
-                              obscureText: true,
-                              style: const TextStyle(color: AppColors.text, fontSize: 14),
-                              decoration: const InputDecoration(
-                                border: InputBorder.none,
-                                hintText: 'Masukkan password',
-                                hintStyle: TextStyle(fontSize: 14, color: AppColors.textDim),
-                              ),
-                              onChanged: (_) => setDlgState(() => error = null),
-                              onSubmitted: (_) async {
-                                final ok = await AuthService.verifyPassword(UserRole.general, ctl.text);
-                                if (ok) {
-                                  Navigator.pop(ctx);
-                                  onSuccess();
-                                } else {
-                                  setDlgState(() => error = 'Password salah');
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (error != null) ...[
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          const Text('\u26A0\uFE0F', style: TextStyle(fontSize: 14, color: AppColors.danger)),
-                          const SizedBox(width: 4),
-                          Text(error!, style: const TextStyle(fontSize: 14, color: AppColors.danger)),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text(
-                    'Batal',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSub),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    final ok = await AuthService.verifyPassword(UserRole.general, ctl.text);
-                    if (ok) {
-                      Navigator.pop(ctx);
-                      onSuccess();
-                    } else {
-                      setDlgState(() => error = 'Password salah');
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: color,
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: const Text('Buka', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
   }
 }
 
@@ -670,7 +540,6 @@ class _MenuItemData {
   final String? subtitle;
   final Color color;
   final bool isProtected;
-  final bool isAdmin;
   final VoidCallback? onTap;
 
   const _MenuItemData({
@@ -679,7 +548,6 @@ class _MenuItemData {
     this.subtitle,
     required this.color,
     this.isProtected = false,
-    this.isAdmin = false,
     this.onTap,
   });
 }

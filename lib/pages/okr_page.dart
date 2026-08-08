@@ -12,6 +12,7 @@ class OkrPage extends StatefulWidget {
 
 class _OkrPageState extends State<OkrPage> {
   final _service = OkrService();
+  final Set<String> _expanded = {};
 
   Color _parseHex(String hex) {
     hex = hex.replaceFirst('#', '');
@@ -82,7 +83,7 @@ class _OkrPageState extends State<OkrPage> {
               border: Border.all(color: AppColors.border),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Center(child: Text('\uD83D\uDD04', style: TextStyle(fontSize: 14))),
+            child: const Center(child: Text('\uD83C\uDFAF', style: TextStyle(fontSize: 14))),
           ),
         ],
       ),
@@ -149,6 +150,7 @@ class _OkrPageState extends State<OkrPage> {
 
   Widget _buildObjectiveCard(Objective obj) {
     final color = _parseHex(obj.color);
+    final isExpanded = _expanded.contains(obj.id);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       decoration: BoxDecoration(
@@ -158,45 +160,55 @@ class _OkrPageState extends State<OkrPage> {
       ),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: const BorderSide(color: AppColors.border),
-                left: BorderSide(color: color, width: 3),
+          InkWell(
+            onTap: () => setState(() {
+              isExpanded ? _expanded.remove(obj.id) : _expanded.add(obj.id);
+            }),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: const BorderSide(color: AppColors.border),
+                  left: BorderSide(color: color, width: 3),
+                ),
               ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(7), color: color.withOpacity(0.15)),
-                  child: Center(
+              child: Row(
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(7), color: color.withOpacity(0.15)),
+                    child: Center(
+                      child: Text(
+                        '${obj.order}',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
                     child: Text(
-                      '${obj.order}',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color),
+                      obj.title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.text,
+                        height: 1.3,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    obj.title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.text,
-                      height: 1.3,
-                    ),
+                  Text(
+                    '${obj.progress.toStringAsFixed(0)}%',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color),
                   ),
-                ),
-                Text(
-                  '${obj.progress.toStringAsFixed(0)}%',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: color),
-                ),
-              ],
+                  const SizedBox(width: 8),
+                  Icon(
+                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                    color: AppColors.textSub,
+                  ),
+                ],
+              ),
             ),
           ),
           Container(
@@ -208,7 +220,8 @@ class _OkrPageState extends State<OkrPage> {
               child: Container(color: color),
             ),
           ),
-          ...obj.keyResults.map((kr) => _buildKrItem(kr, color)),
+          if (isExpanded)
+            ...obj.keyResults.map((kr) => _buildKrItem(kr, color)),
         ],
       ),
     );
@@ -220,7 +233,7 @@ class _OkrPageState extends State<OkrPage> {
       case KrStatus.onTrack:
         barColor = AppColors.general;
         break;
-      case KrStatus.atRisk:
+      case KrStatus.onProgress:
         barColor = AppColors.maintenance;
         break;
       case KrStatus.behind:

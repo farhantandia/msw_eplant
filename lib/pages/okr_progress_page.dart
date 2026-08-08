@@ -257,7 +257,7 @@ class _OkrProgressPageState extends State<OkrProgressPage> {
   Widget _buildStatusChips(KeyResult kr) {
     final statuses = [
       (KrStatus.onTrack, '\u2705 On Track'),
-      (KrStatus.atRisk, '\u26A0\uFE0F At Risk'),
+      (KrStatus.onProgress, '\uD83D\uDD04 On Progress'),
       (KrStatus.behind, '\uD83D\uDD34 Behind'),
     ];
     return Row(
@@ -268,7 +268,7 @@ class _OkrProgressPageState extends State<OkrProgressPage> {
           case KrStatus.onTrack:
             chipColor = AppColors.general;
             break;
-          case KrStatus.atRisk:
+          case KrStatus.onProgress:
             chipColor = AppColors.maintenance;
             break;
           case KrStatus.behind:

@@ -35,7 +35,7 @@ class MenuGrid extends StatelessWidget {
     }
 
     add('\uD83C\uDFED', 'Plant', AppColors.primary, 'plant');
-    add('\uD83D\uDCA8', 'CEMS', const Color(0xFF00BCD4), 'cems');
+    // add('\uD83D\uDCA8', 'CEMS', const Color(0xFF00BCD4), 'cems');
     add('\u2600\uFE0F', 'Solar PV', AppColors.general, 'solar');
     add('\uD83D\uDCCA', 'Analytics', const Color(0xFF38BDF8), 'analytics');
     add('\u26A0\uFE0F', 'Hazard Report', AppColors.maintenance, 'hazard');

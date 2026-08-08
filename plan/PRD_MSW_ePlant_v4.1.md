@@ -651,7 +651,7 @@ Per KR, Admin bisa update:
 - **Numerik:** nilai aktual (slider + angka), auto-hitung progress %
 - **Kualitatif:** pilih fase aktif + % manual + catatan teks
 - **Binary:** update counter per sub-item (Fatality, LTI, dll)
-- Status: On Track / At Risk / Behind
+- Status: On Track / On Progress / Behind
 - Catatan/keterangan
 
 Semua perubahan langsung update Firestore → real-time ke semua user.

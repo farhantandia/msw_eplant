@@ -141,156 +141,158 @@ class _ChartPageState extends State<ChartPage> {
 
     return Container(
       decoration: _bgDecoration(),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
+      child: SafeArea(
+        child: Scaffold(
           backgroundColor: Colors.transparent,
-          elevation: 0,
-          title: Text(widget.columnName,
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-          centerTitle: true,
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 8, left: 12, right: 12),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${finalVal.toStringAsFixed(_decimalPlaces)} ${widget.unit}',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: nonCompliant ? Colors.redAccent : Colors.white),
-                      ),
-                      if (threshold != null) ...[
-                        const SizedBox(width: 10),
-                        Icon(
-                          nonCompliant ? Icons.warning_rounded : Icons.check_circle_rounded,
-                          color: nonCompliant ? Colors.redAccent : Colors.greenAccent,
-                          size: 28,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: Text(widget.columnName,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            centerTitle: true,
+          ),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 8, left: 12, right: 12),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${finalVal.toStringAsFixed(_decimalPlaces)} ${widget.unit}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: nonCompliant ? Colors.redAccent : Colors.white),
                         ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "Last Update: ${widget.date}",
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 14,
-                        fontStyle: FontStyle.italic,
-                        color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Padding(
-                padding:
-                    const EdgeInsets.only(top: 12, left: 8, right: 8, bottom: 8),
-                child: LineChart(
-                  LineChartData(
-                    minY: chartMinY,
-                    maxY: maxY,
-                    minX: minX,
-                    maxX: maxX,
-                    extraLinesData: ExtraLinesData(horizontalLines: extraLines),
-                    lineTouchData: LineTouchData(
-                      enabled: true,
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipColor: (touchedSpot) => Colors.black87,
-                        getTooltipItems: (touchedSpots) {
-                          return touchedSpots.map((spot) {
-                            DateTime dt = DateTime.fromMillisecondsSinceEpoch(
-                                spot.x.toInt());
-                            String fullDate =
-                                DateFormat("dd MMM HH:mm").format(dt);
-                            return LineTooltipItem(
-                              "${spot.y.toStringAsFixed(_decimalPlaces)} ${widget.unit}\n$fullDate",
-                              const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold),
-                            );
-                          }).toList();
-                        },
-                      ),
-                    ),
-                    titlesData: FlTitlesData(
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 45,
-                          getTitlesWidget: (value, meta) => SideTitleWidget(
-                            meta: meta,
-                            child: Text(
-                              value.toStringAsFixed(_decimalPlaces),
-                              style: const TextStyle(
-                                  fontSize: 14, color: Colors.grey),
-                            ),
+                        if (threshold != null) ...[
+                          const SizedBox(width: 10),
+                          Icon(
+                            nonCompliant ? Icons.warning_rounded : Icons.check_circle_rounded,
+                            color: nonCompliant ? Colors.redAccent : Colors.greenAccent,
+                            size: 28,
                           ),
-                        ),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          interval: (maxX - minX) / 4,
-                          getTitlesWidget: (value, meta) {
-                            DateTime dt = DateTime.fromMillisecondsSinceEpoch(
-                                value.toInt());
-                            return SideTitleWidget(
-                              space: 8,
-                              meta: meta,
-                              child: Text(
-                                DateFormat("HH:mm").format(dt),
-                                style: const TextStyle(
-                                    fontSize: 14, color: Colors.grey),
-                              ),
-                            );
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Last Update: ${widget.date}",
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.only(top: 12, left: 8, right: 8, bottom: 8),
+                  child: LineChart(
+                    LineChartData(
+                      minY: chartMinY,
+                      maxY: maxY,
+                      minX: minX,
+                      maxX: maxX,
+                      extraLinesData: ExtraLinesData(horizontalLines: extraLines),
+                      lineTouchData: LineTouchData(
+                        enabled: true,
+                        touchTooltipData: LineTouchTooltipData(
+                          getTooltipColor: (touchedSpot) => Colors.black87,
+                          getTooltipItems: (touchedSpots) {
+                            return touchedSpots.map((spot) {
+                              DateTime dt = DateTime.fromMillisecondsSinceEpoch(
+                                  spot.x.toInt());
+                              String fullDate =
+                                  DateFormat("dd MMM HH:mm").format(dt);
+                              return LineTooltipItem(
+                                "${spot.y.toStringAsFixed(_decimalPlaces)} ${widget.unit}\n$fullDate",
+                                const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold),
+                              );
+                            }).toList();
                           },
                         ),
                       ),
-                      rightTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
-                      topTitles: const AxisTitles(
-                          sideTitles: SideTitles(showTitles: false)),
-                    ),
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: true,
-                      getDrawingHorizontalLine: (value) =>
-                          const FlLine(color: Colors.white10, strokeWidth: 0.5),
-                      getDrawingVerticalLine: (value) =>
-                          const FlLine(color: Colors.white10, strokeWidth: 0.5),
-                    ),
-                    borderData: FlBorderData(
-                      show: true,
-                      border: Border.all(color: Colors.white10),
-                    ),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: spots,
-                        isCurved: true,
-                        dotData: const FlDotData(show: false),
-                        color: lineColor,
-                        barWidth: 2.5,
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: lineColor.withOpacity(0.08),
+                      titlesData: FlTitlesData(
+                        leftTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            reservedSize: 45,
+                            getTitlesWidget: (value, meta) => SideTitleWidget(
+                              meta: meta,
+                              child: Text(
+                                value.toStringAsFixed(_decimalPlaces),
+                                style: const TextStyle(
+                                    fontSize: 12, color: Colors.grey),
+                              ),
+                            ),
+                          ),
                         ),
+                        bottomTitles: AxisTitles(
+                          sideTitles: SideTitles(
+                            showTitles: true,
+                            interval: (maxX - minX) / 4,
+                            getTitlesWidget: (value, meta) {
+                              DateTime dt = DateTime.fromMillisecondsSinceEpoch(
+                                  value.toInt());
+                              return SideTitleWidget(
+                                space: 8,
+                                meta: meta,
+                                child: Text(
+                                  DateFormat("HH:mm").format(dt),
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.grey),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
                       ),
-                    ],
+                      gridData: FlGridData(
+                        show: true,
+                        drawVerticalLine: true,
+                        getDrawingHorizontalLine: (value) =>
+                            const FlLine(color: Colors.white10, strokeWidth: 0.5),
+                        getDrawingVerticalLine: (value) =>
+                            const FlLine(color: Colors.white10, strokeWidth: 0.5),
+                      ),
+                      borderData: FlBorderData(
+                        show: true,
+                        border: Border.all(color: Colors.white10),
+                      ),
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: spots,
+                          isCurved: true,
+                          dotData: const FlDotData(show: false),
+                          color: lineColor,
+                          barWidth: 2.5,
+                          belowBarData: BarAreaData(
+                            show: true,
+                            color: lineColor.withOpacity(0.08),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            _buildStatsBar(minY_global, maxVal, avgY),
-          ],
+              _buildStatsBar(minY_global, maxVal, avgY),
+            ],
+          ),
         ),
       ),
     );

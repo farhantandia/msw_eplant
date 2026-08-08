@@ -9,11 +9,9 @@ import 'package:msw_eplant/models/role.dart';
 import 'package:msw_eplant/services/weather_service.dart';
 import 'package:msw_eplant/pages/weather_page.dart';
 import 'package:msw_eplant/pages/plant_page.dart';
-import 'package:msw_eplant/pages/cems_page.dart';
 import 'package:msw_eplant/pages/analytics_page.dart';
 import 'package:msw_eplant/pages/okr_page.dart';
 import 'package:msw_eplant/pages/logsheet/logsheet_page.dart';
-import 'package:msw_eplant/pages/more_page.dart';
 import 'package:msw_eplant/widgets/role_strip.dart';
 import 'package:msw_eplant/widgets/menu_grid.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -43,7 +41,6 @@ class _HomePageState extends State<HomePage> {
   List<List> _nphrData = [];
   List<List> _cems1Data = [];
   List<List> _cems2Data = [];
-
   List<String> get _t1Header =>
       _table1Data.isNotEmpty ? _table1Data.first.cast<String>() : [];
   List<String> get _t2Header =>
@@ -53,6 +50,9 @@ class _HomePageState extends State<HomePage> {
   bool _loadingData = true;
   int _decimalPlaces = 1;
   String _lastUpdate = '';
+  DateTime? _lastUpdateRaw;
+  
+bool _isLive = false;
   @override
   void initState() {
     super.initState();
@@ -97,9 +97,16 @@ class _HomePageState extends State<HomePage> {
         setter(values);
         _checkLoading();
        
-    if (_table1Data.length > 1) {
-      _lastUpdate = formatDateTime(_table1Data.last[0].toString());
-    }
+    final rawString = _table1Data.last[0].toString();
+  _lastUpdate = formatDateTime(rawString);
+
+  _lastUpdateRaw = DateTime.tryParse(rawString)?.toLocal();
+  if (_lastUpdateRaw != null) {
+    final diff = DateTime.now().difference(_lastUpdateRaw!);
+    _isLive = diff.inMinutes < 60; // < 1 jam dianggap LIVE
+  } else {
+    _isLive = false;
+  }
               });
     }
   }
@@ -220,33 +227,33 @@ class _HomePageState extends State<HomePage> {
             style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text),
           ),
           const Spacer(),
-          Stack(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.65),
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: const Center(child: Text('\uD83D\uDD14', style: TextStyle(fontSize: 14))),
-              ),
-              Positioned(
-                top: 4,
-                right: 4,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: AppColors.danger,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.bg, width: 1.5),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          // Stack(
+          //   children: [
+          //     Container(
+          //       width: 34,
+          //       height: 34,
+          //       decoration: BoxDecoration(
+          //         color: Colors.black.withOpacity(0.65),
+          //         border: Border.all(color: AppColors.border),
+          //         borderRadius: BorderRadius.circular(9),
+          //       ),
+          //       child: const Center(child: Text('\uD83D\uDD14', style: TextStyle(fontSize: 14))),
+          //     ),
+          //     Positioned(
+          //       top: 4,
+          //       right: 4,
+          //       child: Container(
+          //         width: 8,
+          //         height: 8,
+          //         decoration: BoxDecoration(
+          //           color: AppColors.danger,
+          //           shape: BoxShape.circle,
+          //           border: Border.all(color: AppColors.bg, width: 1.5),
+          //         ),
+          //       ),
+          //     ),
+          //   ],
+          // ),
         ],
       ),
     );
@@ -303,12 +310,16 @@ class _HomePageState extends State<HomePage> {
                     Container(
                       width: 7,
                       height: 7,
-                      decoration: const BoxDecoration(color: AppColors.general, shape: BoxShape.circle),
+                      decoration: BoxDecoration(color: _isLive ? AppColors.general : AppColors.danger, shape: BoxShape.circle),
                     ),
                     const SizedBox(width: 4),
-                    const Text(
-                      'LIVE',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.general),
+                     Text(
+                      _isLive ? 'LIVE' : 'NOT UPDATED',
+  style: TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
+    color: _isLive ? AppColors.general : AppColors.danger, // opsional: warna beda saat tidak update
+  ),
                     ),
                   ],
                 ),
@@ -429,7 +440,7 @@ class _HomePageState extends State<HomePage> {
       'https://docs.google.com/forms/d/e/1FAIpQLSfI2lnY6aPm7mfI9eN0Rpw1e3XjKVuvXlUzBik-g-gZZNgLvw/viewform',
     );
     if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
+      await launchUrl(url, mode: LaunchMode.inAppBrowserView);
     } else if (context.mounted) {
       ScaffoldMessenger.of(
         context,
@@ -440,7 +451,7 @@ class _HomePageState extends State<HomePage> {
   Widget _buildMenuGrid() {
     final nav = <String, VoidCallback>{
       'plant': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PlantPage())),
-      'cems': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CemsPage())),
+      // 'cems': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CemsPage())),
       'solar': () => _showComingSoon('Solar PV'),
       'analytics': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsPage())),
       'hazard': () => _openHazardReport(),

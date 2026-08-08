@@ -7,10 +7,10 @@ class CemsThreshold {
 
 class CemsThresholdService {
   static const _thresholds = <String, CemsThreshold>{
-    'SO2': CemsThreshold(max: 550),
-    'NOX': CemsThreshold(max: 550),
-    'PARTICULATE': CemsThreshold(max: 50),
-    'HG': CemsThreshold(max: 0.03),
+    'SO2 CORECCTION': CemsThreshold(max: 550),
+    'NOX CORRECTION': CemsThreshold(max: 550),
+    'PARTICULATE O2': CemsThreshold(max: 50),
+    'HG CORRECTION': CemsThreshold(max: 0.03),
   };
 
   static CemsThreshold? getThreshold(String param) {

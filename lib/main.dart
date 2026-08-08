@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:msw_eplant/constants/theme.dart';
 import 'package:msw_eplant/models/role.dart';
@@ -217,6 +218,39 @@ class _MainScaffoldState extends State<MainScaffold> {
     }
   }
 
+  Future<void> _confirmExit() async {
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: const Text('Keluar dari Aplikasi?',
+            style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Yakin ingin keluar dari MSW ePlant?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+    if (shouldExit == true) {
+      SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_loaded) {
@@ -226,24 +260,31 @@ class _MainScaffoldState extends State<MainScaffold> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.bg,
-      body: _currentPage,
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
-        ),
-        child: BottomNavigationBar(
-          items: _navItems,
-          currentIndex: _selectedIndex,
-          onTap: _onTabTapped,
-          backgroundColor: Colors.black.withOpacity(0.65),
-          selectedItemColor: AppColors.roleColor(_role.label),
-          unselectedItemColor: AppColors.textDim,
-          type: BottomNavigationBarType.fixed,
-          elevation: 0,
-          selectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          unselectedLabelStyle: const TextStyle(fontSize: 14),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _confirmExit();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bg,
+        body: _currentPage,
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: Colors.white.withOpacity(0.1))),
+          ),
+          child: BottomNavigationBar(
+            items: _navItems,
+            currentIndex: _selectedIndex,
+            onTap: _onTabTapped,
+            backgroundColor: Colors.black.withOpacity(0.65),
+            selectedItemColor: AppColors.roleColor(_role.label),
+            unselectedItemColor: AppColors.textDim,
+            type: BottomNavigationBarType.fixed,
+            elevation: 0,
+            selectedLabelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            unselectedLabelStyle: const TextStyle(fontSize: 14),
+          ),
         ),
       ),
     );

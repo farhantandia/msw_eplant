@@ -144,6 +144,7 @@ class OkrService {
 
     _data[2026] = [
       Objective(
+        id: 'o1',
         title: 'Deliver Reliable and Profitable Performance',
         color: '#00C2FF',
         order: 1,
@@ -153,7 +154,7 @@ class OkrService {
             description: 'Achieve NPAT: USD 7.80 million',
             target: '7.80', targetUnit: 'USD M',
             actualValue: '4.29', progressPct: 55,
-            status: KrStatus.atRisk,
+            status: KrStatus.onProgress,
           ),
           KeyResult(
             objectiveId: 'o1', label: 'b',
@@ -175,7 +176,7 @@ class OkrService {
             description: 'Solar PV Kelanis production: 746 MWh',
             target: '746', targetUnit: 'MWh',
             actualValue: '358', progressPct: 48,
-            status: KrStatus.atRisk,
+            status: KrStatus.onProgress,
           ),
           KeyResult(
             objectiveId: 'o1', label: 'e',
@@ -187,6 +188,7 @@ class OkrService {
         ],
       ),
       Objective(
+        id: 'o2',
         title: 'Execute Value-Driven Project Development',
         color: '#C084FC',
         order: 2,
@@ -204,11 +206,12 @@ class OkrService {
             description: 'Explore green initiatives & electrification projects',
             target: '3', targetUnit: 'proyek',
             actualValue: '1', progressPct: 40,
-            status: KrStatus.atRisk,
+            status: KrStatus.onProgress,
           ),
         ],
       ),
       Objective(
+        id: 'o3',
         title: 'Strengthen Sustainability and Compliance',
         color: '#00E5A0',
         order: 3,
@@ -225,7 +228,7 @@ class OkrService {
             description: 'Carbon reduction 13.308 ton CO\u2082e via co-firing & Solar PV',
             target: '13308', targetUnit: 'ton CO\u2082e',
             actualValue: '5988', progressPct: 45,
-            status: KrStatus.atRisk,
+            status: KrStatus.onProgress,
           ),
           KeyResult(
             objectiveId: 'o3', label: 'c',
