@@ -97,18 +97,18 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: Column(
               children: [
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 _buildLogo(),
                 const SizedBox(height: 12),
                 const Text(
                   'MSW ePlant',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.text),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.text),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'PT Makmur Sejahtera Wisesa\n2\u00D730 MW CFPP + Solar PV',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, color: AppColors.textSub, height: 1.5),
+                  style: const TextStyle(fontSize: 16, color: AppColors.textSub, height: 1.5),
                 ),
                 const SizedBox(height: 36),
                 _buildSectionLabel('Masuk sebagai'),
@@ -217,25 +217,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       ],
                     ),
                   ),
-                  if (role.requiresPassword)
-                    const Text('\uD83D\uDD12', style: TextStyle(fontSize: 14, color: AppColors.textDim))
-                  else
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: AppColors.general.withOpacity(0.12),
-                        border: Border.all(color: AppColors.general.withOpacity(0.2)),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Text(
-                        'TANPA PASSWORD',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.general,
-                        ),
-                      ),
-                    ),
+          
                 ],
               ),
             ),
@@ -273,7 +255,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     style: const TextStyle(color: AppColors.text, fontSize: 14),
                     decoration: const InputDecoration(
                       border: InputBorder.none,
-                      hintText: 'Masukkan password',
+                      hintText: 'Input Password',
                       hintStyle: TextStyle(color: AppColors.textDim),
                     ),
                     onChanged: (_) => setState(() => _errorMessage = null),

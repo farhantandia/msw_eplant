@@ -78,16 +78,24 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: AppColors.maintenance,
                     onTap: _openNotifikasi,
                   ),
-                  _MenuItemData(
-                    icon: '\uD83D\uDCDD',
-                    label: 'Manual Input',
-                    subtitle: 'Sales, target, revenue',
-                    color: AppColors.primary,
-                    onTap: _openManualInput,
-                  ),
+                  // _MenuItemData(
+                  //   icon: '\uD83D\uDCDD',
+                  //   label: 'Manual Input',
+                  //   subtitle: 'Sales, target, revenue',
+                  //   color: AppColors.primary,
+                  //   onTap: _openManualInput,
+                  // ),
                 ]),
-                _buildSectionLabel('Manajemen'),
+                _buildSectionLabel('Admin Area'),
                 _buildMenuList([
+                  _MenuItemData(
+                    icon: '\uD83D\uDEE1',
+                    label: 'Admin Menu',
+                    subtitle: 'Kelola struktur & progress OKR',
+                    color: AppColors.general,
+                    isProtected: true,
+                    onTap: _openOkrEditor,
+                  ),
                   _MenuItemData(
                     icon: '\uD83C\uDFAF',
                     label: 'OKR Editor',

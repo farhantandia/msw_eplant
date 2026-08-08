@@ -19,7 +19,7 @@ extension UserRoleX on UserRole {
       case UserRole.maintenance:
         return '\uD83D\uDD27';
       case UserRole.general:
-        return '\uD83D\uDC41';
+        return '\uD83C\uDFED';
     }
   }
 
@@ -30,7 +30,7 @@ extension UserRoleX on UserRole {
       case UserRole.maintenance:
         return 'WO reporting + MSW AI knowledge base';
       case UserRole.general:
-        return 'Monitoring umum, OKR, HSE, Warehouse';
+        return 'Basic Plant Monitoring';
     }
   }
 
@@ -49,14 +49,14 @@ extension UserRoleX on UserRole {
     }
   }
 
-  String get tab3Icon {
-    switch (this) {
-      case UserRole.operation:
-        return '\uD83D\uDCCB';
-      case UserRole.maintenance:
-        return '\uD83D\uDD27';
-      case UserRole.general:
-        return '\uD83C\uDFAF';
-    }
-  }
+  // String get tab3Icon {
+  //   switch (this) {
+  //     case UserRole.operation:
+  //       return '\uD83D\uDCCB';
+  //     case UserRole.maintenance:
+  //       return '\uD83D\uDD27';
+  //     case UserRole.general:
+  //       return '\uD83C\uDFAF';
+  //   }
+  // }
 }
