@@ -40,7 +40,7 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
             icon: const Icon(Icons.arrow_back, color: AppColors.text),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Text('Set Password Login'),
+          title: const Text('Set Password'),
         ),
         body: _buildPasswordList(),
       ),
@@ -119,6 +119,14 @@ class _SetPasswordPageState extends State<SetPasswordPage> {
             label: 'Maintenance',
             color: AppColors.maintenance,
             hint: 'Password ini dipakai saat login sebagai Teknisi Maintenance. Bagikan ke tim maintenance.',
+            lastChanged: '3 Jan 2026',
+          ),
+          _buildRolePasswordCard(
+            scope: 'general',
+            icon: '\uD83C\uDFED',
+            label: 'General',
+            color: AppColors.pink,
+            hint: 'Password ini dipakai saat login sebagai Guest / Karyawan MSW (view only). Bagikan ke staf umum.',
             lastChanged: '3 Jan 2026',
           ),
           _buildRolePasswordCard(

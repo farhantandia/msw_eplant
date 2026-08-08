@@ -252,8 +252,7 @@ class _OkrEditorPageState extends State<OkrEditorPage> {
             ),
             child: Row(
               children: [
-                const Text('\uD83D\uDC40', style: TextStyle(fontSize: 14, color: AppColors.textDim)),
-                const SizedBox(width: 8),
+         
                 Container(
                   width: 22, height: 22,
                   decoration: BoxDecoration(
@@ -321,8 +320,8 @@ class _OkrEditorPageState extends State<OkrEditorPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('\uD83D\uDC40', style: TextStyle(fontSize: 14, color: AppColors.textDim)),
-          const SizedBox(width: 7),
+          // const Text('\uD83D\uDC40', style: TextStyle(fontSize: 14, color: AppColors.textDim)),
+          // const SizedBox(width: 7),
           Container(
             width: 18, height: 18,
             decoration: BoxDecoration(

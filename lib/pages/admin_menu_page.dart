@@ -50,7 +50,7 @@ class _AdminMenuPageState extends State<AdminMenuPage> {
                   ),
                   _AdminMenuItemData(
                     icon: '\uD83D\uDD11',
-                    label: 'Set Password Login',
+                    label: 'Set Password',
                     subtitle: 'Ubah password login semua role',
                     color: AppColors.purple,
                     scope: 'admin',
@@ -183,7 +183,7 @@ class _AdminMenuPageState extends State<AdminMenuPage> {
   void _openSetPassword() {
     _requirePassword(
       AppColors.purple,
-      'Set Password Login',
+      'Set Password',
       'admin',
       () {
         Navigator.push(context, MaterialPageRoute(builder: (_) => const SetPasswordPage()));

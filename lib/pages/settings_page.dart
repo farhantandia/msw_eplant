@@ -90,7 +90,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   _MenuItemData(
                     icon: '\uD83D\uDEE1',
                     label: 'Admin Menu',
-                    subtitle: 'OKR Editor & Set Password Login',
+                    subtitle: 'OKR Editor & Set Password ',
                     color: AppColors.general,
                     isProtected: false, // Set to true if you want to require password for admin menu
                     onTap: _openAdminMenu,
