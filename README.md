@@ -6,7 +6,7 @@
 
 ### **Enterprise Plant Monitoring & Warehouse Operations App**
 **PT Makmur Sejahtera Wisesa (MSW) — Adaro Energy**  
-*PLTU 2×30 MW CFPP + 1.3 MWp Solar PV Plant — Tanjung, Tabalong, Kalimantan Selatan*
+*2×30 MW CFPP + 1.3 MWp Solar PV Plant — Tanjung, Tabalong, South Kalimantan, Indonesia*
 
 [![Flutter Version](https://img.shields.io/badge/Flutter-3.x%20(Dart%203.9.2)-02569B?logo=flutter)](https://flutter.dev)
 [![App Version](https://img.shields.io/badge/App%20Version-v1.0.2%2B1-00B4D8)](pubspec.yaml)
@@ -20,163 +20,163 @@
 
 ## 📌 1. Overview
 
-**MSW ePlant** adalah aplikasi mobile enterprise internal PT Makmur Sejahtera Wisesa yang dirancang untuk mendukung operasional pembangkit, pemantauan performa real-time, pencatatan logsheet digital, pelacakan KPI/OKR, serta transaksi logistik & pergudangan material yang terintegrasi langsung dengan ERP **Microsoft Dynamics 365 (D365 SCM)**.
+**MSW ePlant** is an enterprise internal mobile application engineered for PT Makmur Sejahtera Wisesa (MSW). It empowers power plant operations with real-time performance telemetry, digital shift logsheet recording, corporate OKR/KPI tracking, and end-to-end warehouse material issuance integrated directly with **Microsoft Dynamics 365 Supply Chain Management (D365 SCM)** ERP.
 
-Aplikasi ini menggunakan tema gelap (*Dark Glassmorphism*) berlatar belakang visual pembangkit PLTU MSW (`asset/msw.png`), didukung tata letak responsif, navigasi berbasis peran pengguna (*Role-Based Access Control*), dan komunikasi data asinkron berkecepatan tinggi.
+The application is built with a modern **Dark Glassmorphism** design system over the plant background visual (`asset/msw.png`), featuring responsive layouts, Role-Based Access Control (RBAC), and high-throughput asynchronous data streams.
 
 ---
 
-## 🚀 2. Fitur-Fitur Utama
+## 🚀 2. Key Features
 
-### 🏭 1. Plant & Generation Real-Time Monitoring
-- **Live Generation Streaming**: Menampilkan total gross generation (MW), net generation, beban auxiliary, serta distribusi beban ke jaringan PLN dan captive Adaro Indonesia (AI).
-- **Unit 1 & Unit 2 Sensor Matrix**: Pemantauan real-time parameter kritis (Main Steam Pressure/Temp, Reheat, Drum Level, Vacuum Condenser, Generator MW/MVAR/Hz).
-- **Trip & Shutdown Banner**: Deteksi otomatis status unit trip atau shutdown (beban < 2 MW) dengan banner peringatan visual.
-- **Weather Widget**: Kondisi cuaca, suhu, kelembaban, dan kecepatan angin real-time di Tanjung, Tabalong via OpenWeatherMap API.
+### 🏭 1. Real-Time Plant & Generation Monitoring
+- **Live Generation Streaming**: Real-time telemetry for gross generation (MW), net generation, auxiliary power consumption, and load distribution to both the national grid (PLN) and captive Adaro Indonesia (AI) networks.
+- **Unit 1 & Unit 2 Critical Sensor Matrix**: Real-time monitoring of main steam temperature/pressure, reheat, boiler drum level, condenser vacuum, and generator electrical parameters (MW, MVAR, Hz).
+- **Trip & Shutdown Alert Banner**: Automated detection and visual alert banner when unit load drops below 2 MW.
+- **Live Weather Widget**: Real-time ambient temperature, humidity, wind speed, and weather conditions in Tanjung, Tabalong via OpenWeatherMap API.
 
 ### 🍃 2. CEMS (Continuous Emission Monitoring System)
-- **Multi-Pollutant Real-Time Tracking**: Pemantauan emisi Particulate Matter (PM), Sulfur Dioksida ($\text{SO}_2$), Nitrogen Oksida ($\text{NO}_x$), dan Merkuri ($\text{Hg}$) untuk Unit 1 & 2.
-- **Baku Mutu Threshold & Compliance Badge**: Indikator status *Compliant* / *Exceeded* terhadap baku mutu regulasi PermenLHK / PTBAE-PU.
-- **Interactive Threshold Chart**: Visualisasi tren emisi dengan garis batas (*HorizontalLine*) menggunakan `fl_chart`.
-- **Local Alert Notifications**: Notifikasi otomatis saat parameter emisi mendekati atau melewati ambang batas toleransi.
+- **Multi-Pollutant Telemetry**: Continuous streaming of Particulate Matter (PM), Sulfur Dioxide ($\text{SO}_2$), Nitrogen Oxides ($\text{NO}_x$), and Mercury ($\text{Hg}$) for Stacks 1 & 2.
+- **Regulatory Threshold & Compliance Badge**: Dynamic compliance status indicators (*Compliant* vs. *Exceeded*) aligned with environmental regulations (PermenLHK / PTBAE-PU).
+- **Interactive Threshold Charts**: Visual emission trends plotted with threshold limit lines (*HorizontalLine*) powered by `fl_chart`.
+- **Local Threshold Alerts**: Automated notification triggers when emissions approach or exceed safety limits.
 
 ### 📈 3. NPHR & Thermal Efficiency Analytics
-- **Polynomial NPHR Curve**: Kurva efisiensi panas 5–30 MW dengan overlay titik kerja aktual real-time.
-- **Target vs Actual Indicator**: Evaluasi deviasi konsumsi kalori batubara terhadap target efisiensi energi.
-- **Multi-Parameter Charting**: Analisis korelasi multi-sensor dengan sumbu ganda (*Dual Y-Axis*).
+- **Polynomial NPHR Curve**: Thermal efficiency curve (5–30 MW) with real-time operating point overlay.
+- **Target vs. Actual Deviation Indicator**: Energy consumption deviation metrics against benchmark heat rate targets.
+- **Multi-Parameter Correlation Charting**: Simultaneous multi-sensor correlation analysis with Dual Y-Axis support.
 
 ### 📋 4. Digital Shift Logsheet
-- **Boiler Logsheet**: 62 parameter operasi per time slot shift (07:00 – 19:00 WITA).
-- **Steam Turbine Logsheet**: 57 parameter operasi (bearing temp, vibration, oil pressure, vacuum).
-- **Direct Cloud Sync**: Sinkronisasi langsung ke Google Sheets master via OAuth2 Google API v4.
-- **Offline Draft Saving**: Penyimpanan lokal sementara saat jaringan offline via `SharedPreferences`.
+- **Boiler Local Logsheet**: 62 operational fields across 24 hourly time slots (07:00 – 19:00 WITA).
+- **Steam Turbine Local Logsheet**: 57 operational parameters (bearing temperatures, vibration, lube oil pressure, condenser vacuum).
+- **Cloud Master Sync**: Direct sync to corporate Google Sheets via Google Sheets API v4 (OAuth2).
+- **Offline Draft Resilience**: Seamless local draft caching using `SharedPreferences` during network disconnects.
 
 ---
 
-### 📦 5. Modul Warehouse & Pengambilan Material Multi-Item (D365 SCM) — *NEW in v4.3*
+### 📦 5. Warehouse & Multi-Item Material Issuance (D365 SCM) — *NEW in v4.3*
 
-Modul mutakhir untuk kebutuhan pengambilan material/sparepart operasional yang terintegrasi langsung dengan ERP **Microsoft Dynamics 365**:
+A comprehensive warehouse module for field technicians and warehouse keepers, fully integrated with **Microsoft Dynamics 365**:
 
 ```
  ┌──────────────────────┐      ┌────────────────────────┐      ┌───────────────────────┐
  │   Warehouse Page     │ ───> │   Material Issue Form  │ ───> │  D365 ERP API Server  │
- │  - D365 Sesi Banner  │      │  - Header WO Picker    │      │  - On-Demand Check    │
+ │  - D365 Session      │      │  - Active WO Picker    │      │  - On-Demand Check    │
  │  - Search Item D365  │      │  - Multi-Item Cart     │      │  - Journal No Issue   │
- │  - Riwayat Transaksi │      │  - Qty vs Stock Valid  │      │  - Real-time Stock    │
+ │  - Transaction Logs  │      │  - Stock vs Qty Guard  │      │  - Real-time Stock    │
  └──────────────────────┘      └────────────────────────┘      └───────────────────────┘
             │                              ▲
             ▼                              │
  ┌──────────────────────┐                  │
  │  QR / Barcode Camera │ ─────────────────┘
- │  - Laser Viewfinder  │   (Scan Barcode / Input Manual)
+ │  - Laser Viewfinder  │   (Scan Barcode / Manual Input)
  │  - Torch & Flip Cam  │
  └──────────────────────┘
 ```
 
-#### ✨ Keunggulan & Fitur Warehouse:
-1. **Otentikasi Akun D365 In-App (`D365UserSession`)**:
-   - Login mandiri ke sistem D365 langsung di aplikasi.
-   - Pilihan instan akun executor resmi: `61000003 - Executor EIC`, `61000006 - Executor DG-PLTS`, `61000002 - Executor MECH-W&F`.
-   - Opsi input Employee ID dan PIN kustom untuk seluruh personil.
-   - Status sesi tersinkronisasi otomatis dengan tombol cepat **`Login D365`**, **`Ganti`**, dan **`Logout`** di dashboard.
-2. **Daftar Work Order (WO) Dinamis D365**:
-   - Pemilihan WO aktif yang belum completed (`In Progress`, `Open`, `Released`).
-   - Auto-fill data Activity, Cost Center, dan Gudang default sesuai WO terpilih.
-3. **Master Data Resmi D365**:
-   - **19 Gudang (Warehouse)**: `MAINSTORE`, `OILSTORE`, `CHEMSTORE`, `MAINWORK`, `COALSTORE`, `SAFETYSTORE`, dll.
-   - **86 Activity Dimension Values**: `6100AC5403 - Equipment Tools`, `6100AC4042 - Inventory - Lubricant`, `6100AC0000 - NON`, dll.
-   - **39 Cost Center Operating Units**: `6100DB401 - MSW_Maintenance - Mechanical`, `6100DB402 - EIC`, dll.
-   - **Dynamic Unit Type**: Satuan barang (`PCS`, `SET`, `LTR`, `KG`, `UNIT`) diterima langsung secara dinamis dari D365.
-4. **Arsitektur On-Demand Single Fetch**:
-   - Pengecekan data barang dan sisa stok dilakukan secara instan per nomor item (`01.001.001.0004`) saat discan/diketik.
-   - Respon sangat cepat (**< 200 ms**), ukuran payload sangat ringan (**< 1 KB**), dan stok dipastikan **100% akurat real-time**.
+#### ✨ Warehouse Highlights & Capabilities:
+1. **In-App D365 User Authentication (`D365UserSession`)**:
+   - Direct D365 user login within the mobile application.
+   - 1-Tap preset authentication for registered plant executors: `61000003 - Executor EIC`, `61000006 - Executor DG-PLTS`, and `61000002 - Executor MECH-W&F`.
+   - Custom Employee ID + PIN login support for all plant staff.
+   - Real-time session synchronization with quick action buttons (**`Login D365`**, **`Switch`**, and **`Logout`**) on the warehouse dashboard.
+2. **Dynamic Work Order (WO) Picker**:
+   - Active, uncompleted Work Order retrieval (`In Progress`, `Open`, `Released`) from D365.
+   - Automated pre-population of Activity, Cost Center, and default Warehouse upon WO selection.
+3. **Official D365 Master Dimension Values**:
+   - **19 Warehouses**: `MAINSTORE`, `OILSTORE`, `CHEMSTORE`, `MAINWORK`, `COALSTORE`, `SAFETYSTORE`, etc.
+   - **86 Activity Dimension Values**: `6100AC5403 - Equipment Tools`, `6100AC4042 - Inventory - Lubricant`, `6100AC0000 - NON`, etc.
+   - **39 Cost Center Operating Units**: `6100DB401 - MSW_Maintenance - Mechanical`, `6100DB402 - EIC`, etc.
+   - **Dynamic Unit Types**: Official unit types (`PCS`, `SET`, `LTR`, `KG`, `UNIT`) retrieved dynamically from D365.
+4. **On-Demand Single Fetch Architecture**:
+   - Instant validation per item number (`01.001.001.0004`) upon scanning or typing.
+   - Ultra-fast response time (**< 200 ms**), lightweight payload (**< 1 KB**), and **100% real-time on-hand stock accuracy**.
 5. **Search Item D365 (Contains Filter)**:
-   - Pencarian master katalog barang D365 berdasarkan kata kunci nama barang atau nomor item (daftar awal kosong sebelum dicari agar tidak membebani memori).
-6. **Pemindai Barcode & QR Code (`mobile_scanner` v6.0.11)**:
-   - Antarmuka kamera modern dengan animasi *laser scanning beam*, toggle senter (*torch*), *flip camera*, dan modal fallback input manual auto-format `XX.XXX.XXX.XXXX`.
-7. **Formulir Pengambilan Multi-Item**:
-   - Pengambilan beberapa sparepart sekaligus dalam 1 Work Order.
-   - Validasi ketat kuantitas pengambilan tidak boleh melebihi sisa stok D365.
-   - Review dialog & posting payload dengan format kode unit dan kode employee resmi D365.
-   - Otomatis menerbitkan **Nomor Jurnal Transaksi D365** (contoh: `JRN-D365-2026-4821`).
+   - Search D365 master catalog by item name or part number (initial state is empty to conserve device memory).
+6. **QR Code & Barcode Camera Scanner (`mobile_scanner` v6.0.11)**:
+   - Modern camera viewfinder with animated laser scanning beam, torch/flashlight toggle, front/rear camera flip, and manual fallback modal with `XX.XXX.XXX.XXXX` auto-formatting.
+7. **Multi-Item Material Cart & Posting**:
+   - Batch multiple spare parts within a single Work Order issuance.
+   - Stock guard prevents requesting quantities greater than real-time available inventory.
+   - Review dialog and official payload generation with clean Cost Center dimension codes and Employee IDs.
+   - Automatic generation of official **D365 Transaction Journal Numbers** (e.g., `JRN-D365-2026-4821`).
 
 ---
 
 ### 🎯 6. OKR (Objectives & Key Results) Dashboard
-- **Strategic Progress Tracking**: Monitoring progres sasaran strategis perusahaan tahun 2026.
-- **In-App OKR Editor**: Penambahan, pengeditan, penghapusan, dan pembaruan nilai progres KR dengan proteksi password admin OKR.
+- **Corporate Strategy Tracking**: Real-time progress monitoring for 2026 corporate objectives.
+- **In-App OKR Editor**: Secure CRUD operations for Objectives & Key Results protected by an administrative password gate.
 
 ### 🛡️ 7. HSE & Hazard Reporting
-- Pelaporan potensi bahaya (*Unsafe Action / Unsafe Condition*) langsung dari lapangan.
+- Instant field reporting for Unsafe Actions, Unsafe Conditions, and Near-Miss incidents.
 
 ### 🔐 8. Role-Based Access Control & Security
-- **3 Peran Pengguna**: *Operation*, *Maintenance*, dan *General*.
-- **Dynamic Bottom Navigation Bar**: Tab dan menu yang menyesuaikan peran yang sedang aktif.
-- **Hierarki Keamanan Password**: Proteksi bertingkat untuk menu Admin, Pengaturan Password, dan Editor OKR.
+- **3 User Roles**: *Operation*, *Maintenance*, and *General*.
+- **Dynamic Bottom Navigation Bar**: Adaptive navigation tabs customized to the authenticated role.
+- **Multi-Level Password Hierarchy**: Scoped security access protecting Admin Settings, Password Configuration, and OKR Editing.
 
 ---
 
 ## 🛠️ 3. Tech Stack & Dependencies
 
-| Kategori | Teknologi / Library | Versi | Kegunaan |
+| Category | Technology / Library | Version | Description |
 |---|---|---|---|
-| **Framework** | Flutter / Dart SDK | `^3.9.2` | Mobile UI cross-platform (Android, iOS) |
-| **Realtime DB** | `firebase_core`, `firebase_database` | `^4.1.1`, `^12.0.2` | Streaming data sensor RTDB pembangkit |
-| **ERP Integration**| `http`, `shared_preferences` | `^1.2.2`, `^2.2.3` | REST/OData D365 SCM API & Session State |
-| **Barcode Scanner**| `mobile_scanner` | `^6.0.11` | Pemindai Barcode & QR Code kamera perangkat |
-| **Chart & Visual** | `fl_chart` | `^1.1.1` | Grafik NPHR, tren emisi CEMS, dan analytics |
-| **Date & Format**  | `intl` | `^0.19.0` | Lokalisasi tanggal, jam, dan angka desimal |
-| **Sheets Sync**    | `googleapis`, `google_sign_in` | `^13.2.0`, `^6.2.1` | Sinkronisasi digital logsheet Google Sheets |
-| **Local Notif**    | `flutter_local_notifications` | `^18.0.1` | Notifikasi alarm harian dan alert CEMS |
-| **Icons & Style**  | `cupertino_icons` | `^1.0.8` | Ikonografi & desain konsisten |
+| **Framework** | Flutter / Dart SDK | `^3.9.2` | Cross-platform mobile UI (Android & iOS) |
+| **Realtime DB** | `firebase_core`, `firebase_database` | `^4.1.1`, `^12.0.2` | Sensor telemetry streaming from plant RTDB |
+| **ERP Integration**| `http`, `shared_preferences` | `^1.2.2`, `^2.2.3` | REST/OData D365 SCM API client & session storage |
+| **Barcode Scanner**| `mobile_scanner` | `^6.0.11` | Camera-based Barcode and QR Code scanner |
+| **Charts & Visuals**| `fl_chart` | `^1.1.1` | NPHR curves, emission trends, and analytics charts |
+| **Localization**  | `intl` | `^0.19.0` | Number, currency, and date/time formatting |
+| **Sheets Sync**    | `googleapis`, `google_sign_in` | `^13.2.0`, `^6.2.1` | Digital logsheet sync to corporate Google Sheets |
+| **Local Notif**    | `flutter_local_notifications` | `^18.0.1` | Scheduled reminders and CEMS alert triggers |
+| **Icons & Design** | `cupertino_icons` | `^1.0.8` | Consistent visual iconography |
 
 ---
 
-## 📂 4. Struktur Direktori Proyek
+## 📂 4. Project Directory Structure
 
 ```
 msw_eplant/
-├── android/                   # Konfigurasi native Android & AndroidManifest (Camera Permission)
-├── asset/                     # Asset visual (msw.png, logo, background)
+├── android/                   # Native Android configuration & AndroidManifest (Camera Permission)
+├── asset/                     # Visual assets (msw.png, logos, plant background)
 ├── lib/
-│   ├── constants/             # Token desain & AppColors (Dark Theme palette)
-│   ├── models/                # Data models
-│   │   ├── d365_user_model.dart       # Sesi login user D365 (Employee code, dept)
-│   │   ├── material_issue_model.dart  # Payload transaksi pengambilan multi-item
-│   │   ├── role.dart                  # UserRole model (Operation, Maintenance, General)
-│   │   ├── warehouse_item.dart        # Model item katalog & stok D365
-│   │   └── work_order_model.dart      # Model Work Order aktif D365
-│   ├── pages/                 # Halaman & UI components
-│   │   ├── analytics_page.dart        # Analisis korelasi multi-parameter
-│   │   ├── cems_detail_page.dart      # Detail CEMS, compliance badge & threshold chart
-│   │   ├── home_page.dart             # Dashboard utama, beban unit, cuaca, grid menu
-│   │   ├── logsheet_page.dart         # Form logsheet Boiler & Turbine
-│   │   ├── okr_page.dart              # Dashboard & editor OKR
-│   │   ├── setting_page.dart          # Pengaturan, profil, dan admin password gate
-│   │   └── warehouse/                 # Modul Warehouse D365
-│   │       ├── material_issue_page.dart # Form pengambilan material multi-item
-│   │       ├── qr_scanner_page.dart     # Kamera QR/Barcode scanner + viewfinder laser
-│   │       └── warehouse_page.dart      # Dashboard gudang, Search Item, & Riwayat
+│   ├── constants/             # Design tokens & AppColors (Dark Theme palette)
+│   ├── models/                # Domain models
+│   │   ├── d365_user_model.dart       # D365 user session (Employee code, department)
+│   │   ├── material_issue_model.dart  # Multi-item issue request payload
+│   │   ├── role.dart                  # UserRole definition (Operation, Maintenance, General)
+│   │   ├── warehouse_item.dart        # D365 catalog item and on-hand stock model
+│   │   └── work_order_model.dart      # Active D365 Work Order model
+│   ├── pages/                 # UI pages and components
+│   │   ├── analytics_page.dart        # Multi-parameter correlation analysis
+│   │   ├── cems_detail_page.dart      # CEMS telemetry, compliance badges & threshold chart
+│   │   ├── home_page.dart             # Main dashboard, unit load, weather, department grid
+│   │   ├── logsheet_page.dart         # Digital Boiler & Turbine shift logsheets
+│   │   ├── okr_page.dart              # OKR dashboard & structure editor
+│   │   ├── setting_page.dart          # App settings, profile, and password gate
+│   │   └── warehouse/                 # D365 Warehouse Module
+│   │       ├── material_issue_page.dart # Multi-item material issue form
+│   │       ├── qr_scanner_page.dart     # Barcode & QR camera scanner with laser beam
+│   │       └── warehouse_page.dart      # Warehouse dashboard, Item Search, & Issue History
 │   ├── services/              # Business logic & API clients
-│   │   ├── d365_service.dart          # Layanan lengkap integrasi D365 API & master data
-│   │   ├── cems_threshold_service.dart# Pengawasan baku mutu emisi
-│   │   ├── notification_service.dart  # Notifikasi lokal & peringatan alarm
-│   │   └── rtdb_service.dart          # Stream listener Firebase RTDB
-│   └── main.dart              # Entry point aplikasi & inisialisasi modul
-├── plan/                      # Dokumen PRD, spesifikasi teknis, & mockup
+│   │   ├── d365_service.dart          # Microsoft Dynamics 365 API client & master data
+│   │   ├── cems_threshold_service.dart# CEMS regulatory compliance monitoring
+│   │   ├── notification_service.dart  # Local push notifications & alarm handlers
+│   │   └── rtdb_service.dart          # Firebase Realtime Database stream listener
+│   └── main.dart              # Application entry point and service initializers
+├── plan/                      # PRD specifications, technical notes, and UI mockups
 │   ├── PRD_MSW_ePlant_v4.1.md         # Master Product Requirements Document (PRD v4.3)
 │   └── Logsheet_Detail_Implementation.md
-├── pubspec.yaml               # Definisi package & dependencies Flutter
-└── README.md                  # Dokumentasi utama repositori
+├── pubspec.yaml               # Flutter package configuration and dependencies
+└── README.md                  # Master repository documentation (English)
 ```
 
 ---
 
-## 🧪 5. Data Dummy Nomor Item D365 (Siap Uji Simulasi)
+## 🧪 5. D365 Dummy Test Part Numbers (Ready for Simulation)
 
-Untuk simulasi pengambilan material, scan barcode, dan verifikasi stok, gunakan daftar nomor item berikut:
+Use the following pre-configured part numbers for scanning or manual simulation:
 
-| Nomor Item (Format Scan / Input) | Nama Barang | Satuan (D365) | Sisa Stok | Lokasi Default |
+| Item Number (Scan / Input) | Description | Unit Type (D365) | Available Stock | Default Location |
 |:---|:---|:---:|:---:|:---|
 | `01.001.001.0004` | **BEARING 6204-2RS C3 SKF** | `PCS` | **24.0** | MAINSTORE / `RAK-A2 / BIN-04` |
 | `01.001.001.0005` | **BEARING 6309-2Z/C3 SKF** | `PCS` | **12.0** | MAINSTORE / `RAK-A2 / BIN-05` |
@@ -189,50 +189,51 @@ Untuk simulasi pengambilan material, scan barcode, dan verifikasi stok, gunakan 
 | `01.008.001.0003` | **MCB 3 POLE 32A 10KA SCHNEIDER** | `PCS` | **10.0** | MAINWORK / `RAK-E2 / BIN-05` |
 | `01.009.001.0001` | **HIGH TEMP GREASE EP2** | `KG` | **45.0** | OILSTORE / `RAK-L1 / BIN-01` |
 
-> *Catatan: Sistem juga mendukung pengujian nomor item kustom berformat `XX.XXX.XXX.XXXX` dengan kuantitas stok otomatis 15 PCS.*
+> *Note: Any custom item number matching the format `XX.XXX.XXX.XXXX` is also dynamically supported with default mock inventory of 15 PCS.*
 
 ---
 
-## 💻 6. Panduan Menjalankan Aplikasi
+## 💻 6. Getting Started & Installation
 
-### Prasyarat
-- Flutter SDK `^3.9.2` atau lebih baru
+### Prerequisites
+- Flutter SDK `^3.9.2` or later
 - Android SDK (API level 21+) / Android Studio
-- Device fisik Android dengan kamera (untuk scan QR/Barcode) atau Emulator
+- Physical Android device with camera (for barcode/QR scanning) or an Android Emulator
 
-### Langkah Menjalankan:
+### Run Instructions:
 ```bash
-# 1. Clone repository
+# 1. Clone the repository
 git clone https://github.com/farhantandia/msw_eplant.git
 cd msw_eplant
 
-# 2. Unduh dependencies
+# 2. Install dependencies
 flutter pub get
 
-# 3. Verifikasi kode
+# 3. Verify static code analysis
 flutter analyze
 
-# 4. Jalankan pada perangkat yang terhubung
+# 4. Launch on connected device
 flutter run
 ```
 
 ---
 
-## 📜 7. Riwayat Pembaruan (Changelog)
+## 📜 7. Changelog & Commit History
 
-### **Update Terbaru (30 Agustus 2026 — Sejak Commit GitHub `51fd434`)**
-- ➕ **Modul Warehouse D365 Terintegrasi**: Mengembangkan dashboard gudang [warehouse_page.dart](file:///lib/pages/warehouse/warehouse_page.dart) dengan banner status koneksi D365, quick actions, dan riwayat voucher.
-- ➕ **Formulir Pengambilan Material Multi-Item**: Mengembangkan [material_issue_page.dart](file:///lib/pages/warehouse/material_issue_page.dart) yang mendukung pengambilan banyak item sekaligus per Work Order, dialog konfirmasi transaksi, dan validasi kuantitas stok real-time.
-- ➕ **Otentikasi Akun D365 In-App**: Menambahkan model `D365UserSession` dan modal login D365 dengan pilihan akun executor resmi (`61000003`, `61000006`, `61000002`) serta input manual employee ID.
-- ➕ **Integrasi Master Data D365**: Memasukkan 19 Gudang resmi, 86 Activity Dimension Values, 39 Cost Center Operating Units, dan dynamic unit type dari D365.
-- ➕ **Pemindai Barcode & QR Code**: Membangun [qr_scanner_page.dart](file:///lib/pages/warehouse/qr_scanner_page.dart) dengan `mobile_scanner` v6.0.11, animasi laser beam, toggle senter, dan switch kamera.
-- ➕ **Arsitektur On-Demand Single Fetch**: Optimalisasi pengambilan data katalog & stok secara on-demand per nomor item untuk efisiensi tinggi (< 200ms latency, < 1 KB payload).
-- ➕ **Pencarian Master Barang (Search Item D365)**: Menambahkan modal pencarian barang berbasis filter nama/kata kunci dengan list awal kosong sebelum dicari.
-- ➕ **Izin Kamera Native Android**: Menambahkan izin `<uses-permission android:name="android.permission.CAMERA"/>` pada `AndroidManifest.xml`.
-- ➕ **Dokumentasi Lengkap**: Memperbarui PRD ke Versi 4.3 dan menyusun master `README.md`.
+### **Latest Updates (August 30, 2026 — Since GitHub Commit `51fd434`)**
+- ➕ **Integrated D365 Warehouse Module**: Built [warehouse_page.dart](file:///lib/pages/warehouse/warehouse_page.dart) with D365 connection status banner, quick actions, and transaction voucher logs.
+- ➕ **Multi-Item Material Issuance**: Developed [material_issue_page.dart](file:///lib/pages/warehouse/material_issue_page.dart) supporting batch material issues per Work Order, confirmation review dialogs, and real-time inventory validation.
+- ➕ **In-App D365 Authentication**: Introduced `D365UserSession` model and authentication modal with 1-tap presets (`61000003`, `61000006`, `61000002`) and manual employee code entry.
+- ➕ **D365 Master Dimension Lists**: Integrated 19 Warehouses, 86 Activity Dimension Values, 39 Cost Center Operating Units, and dynamic unit types from D365.
+- ➕ **QR & Barcode Camera Scanner**: Engineered [qr_scanner_page.dart](file:///lib/pages/warehouse/qr_scanner_page.dart) with `mobile_scanner` v6.0.11, animated laser beam viewfinder, flashlight toggle, and camera flip.
+- ➕ **On-Demand Single Fetch Architecture**: Optimized catalog and inventory querying on-demand per item number for high responsiveness (< 200ms latency, < 1 KB payload).
+- ➕ **Item Search Modal**: Added keyword-based catalog search with clean initial empty state.
+- ➕ **Native Android Camera Permission**: Added `<uses-permission android:name="android.permission.CAMERA"/>` to `AndroidManifest.xml`.
+- ➕ **Comprehensive Documentation**: Updated PRD specification to Version 4.3 and authored full English `README.md`.
 
 ---
 
 <div align="center">
 <b>© 2026 PT Makmur Sejahtera Wisesa (MSW) — Adaro Energy. All Rights Reserved.</b>
 </div>
+
