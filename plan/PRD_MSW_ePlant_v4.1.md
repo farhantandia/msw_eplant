@@ -1,5 +1,5 @@
 # Product Requirements Document
-## MSW ePlant Mobile Application — Version 4.1
+## MSW ePlant Mobile Application — Version 4.3
 **PT Makmur Sejahtera Wisesa (MSW) — Adaro Group**
 **2×30 MW CFPP + Solar PV Plant**
 **Codebase Aktual: v1.0.2 → Target: v2.0.0**
@@ -7,7 +7,7 @@
 ---
 
 > **Status Legenda:**
-> - ✅ Sudah diimplementasikan di v1.0.2
+> - ✅ Sudah diimplementasikan di codebase
 > - ⚠️ Sebagian selesai / ada gap
 > - 🔜 Rencana pengembangan baru
 > - 🆕 Keputusan baru dari sesi desain
@@ -21,7 +21,8 @@
 | v3.2 | Jun 2026 | Kondisi aktual codebase v1.0.2 |
 | v4.0 | Jul 2026 | Homepage redesign, Login 3 role, Bottom nav dinamis, WO Report, MSW AI RAG, Warehouse QR, OKR dasar |
 | v4.1 | Jul 2026 | OKR CRUD (tambah/edit/hapus/ganti tahun/riwayat), Setting page redesign, Hierarki password 4 level, Set Password page, CEMS threshold baku mutu + threshold line chart + notifikasi |
-| **v4.2** | **8 Aug 2026** | **Audit ulang codebase — sinkronisasi status fitur dengan implementasi aktual (OKR in-memory, Auth SharedPreferences plaintext, bottom nav 4 tab, CEMS threshold line/badge sudah terpasang, dst.)** |
+| v4.2 | 8 Aug 2026 | Audit ulang codebase — sinkronisasi status fitur dengan implementasi aktual (OKR in-memory, Auth SharedPreferences plaintext, bottom nav 4 tab, CEMS threshold line/badge sudah terpasang, dst.) |
+| **v4.3** | **30 Aug 2026** | **Implementasi Penuh Modul Warehouse & Pengambilan Material Multi-Item Integrasi Microsoft Dynamics 365 (D365 SCM): QR/Barcode camera scanner (mobile_scanner), Otentikasi D365 in-app (`D365UserSession`), On-Demand real-time stock check & dynamic Unit Type dari D365, Form Pengambilan Multi-Item per WO, Master List 19 Gudang, 86 Activity Dimension Values, 39 Cost Center Operating Units, serta auto-sync sesi D365 di dashboard.** |
 
 ---
 
@@ -74,7 +75,8 @@
 | Firestore | 🔜 | Dependency terpasang, **0 penggunaan** di lib |
 | WO Progress Report | 🔜 | Hanya kartu statis non-tap di Maintenance page |
 | MSW AI Assistant (RAG) | 🔜 | Belum ada |
-| Warehouse QR Material | 🔜 | Menu "dalam pengembangan"; `mobile_scanner` tidak dipakai |
+| **Warehouse & Material Issue D365** | **✅** | **Terimplementasi Penuh: Integrasi D365 API, In-App D365 Auth (`D365UserSession`), Scanner QR/Barcode (`mobile_scanner`), Form Pengambilan Multi-Item per WO, On-Demand Live Stock & Unit Type D365, 19 Gudang, 86 Activity, 39 Cost Center, & Posting Jurnal D365** |
+| **QR/Barcode Camera Scanner** | **✅** | **Viewfinder animasi laser beam, toggle senter (torch), switch kamera, dan input manual fallback dengan auto-format `XX.XXX.XXX.XXXX`** |
 
 ---
 
@@ -806,6 +808,97 @@ Cek SharedPreferences: session valid? (saat ini 15 hari; target 12 jam)
 | Setting (umum) | ✅ | ✅ | ✅ |
 | Setting OKR Editor | Password OKR | Password OKR | Password OKR |
 | Setting Set Password | Password Master | Password Master | Password Master |
+
+---
+
+### 5.6 Modul Warehouse & Pengambilan Material Multi-Item D365 ✅
+
+Modul Warehouse menyediakan antarmuka terintegrasi untuk tim operasional & pemeliharaan dalam mengambil material/sparepart gudang langsung terhubung ke sistem ERP **Microsoft Dynamics 365 Supply Chain Management (D365 SCM)**.
+
+```mermaid
+flowchart TD
+    A[Buka Warehouse & Material] --> B{Status Sesi D365?}
+    B -->|Belum Login| C[Login Akun D365: Preset Executor / Manual ID + PIN]
+    B -->|Sudah Login| D[Pilih 'Mulai Pengambilan' / 'Scan QR']
+    C --> D
+    D --> E[Isi Header: Pilih No WO Aktif D365, Gudang, Activity, Cost Center]
+    E --> F[Tambah Item Barang]
+    F --> G{Metode Input Item}
+    G -->|Scan Kamera| H[Scan Barcode / QR Code mobile_scanner]
+    G -->|Input Manual| I[Input Format Fix: XX.XXX.XXX.XXXX]
+    H --> J[On-Demand Live Check ke D365 API]
+    I --> J
+    J --> K{Item Valid & Stok > 0?}
+    K -->|Tidak| L[Tampilkan Error / Stok Kosong]
+    L --> F
+    K -->|Ya| M[Response D365: Nama Item, Dynamic Unit Type PCS/SET/LTR/KG, Sisa Stok]
+    M --> N[Tentukan Quantity Diambil <= Sisa Stok]
+    N --> O[Simpan Item ke Keranjang Multi-Item WO]
+    O --> P{Tambah Item Lain?}
+    P -->|Ya| F
+    P -->|Cukup| Q[Review Transaksi & Konfirmasi]
+    Q --> R[POST Payload ke D365 API: Header Code + Line Items]
+    R --> S[D365 Response: Nomor Jurnal Terbit JRN-D365-XXXX]
+    S --> T[Selesai: Sisa Stok Terupdate & Riwayat Tersimpan]
+```
+
+#### 1. Otentikasi Akun D365 In-App (`D365UserSession`)
+- **Tujuan**: User perlu login ke akun Microsoft Dynamics 365 secara terpisah dari login aplikasi untuk mendapatkan kode Employee resmi dan departemen/cost center bawaan.
+- **Fitur Login**:
+  - **Tab 1 — Preset Akun Executor Resmi**: Opsi cepat 1-klik untuk akun executor terdaftar (`61000003 - Executor EIC`, `61000006 - Executor DG-PLTS`, `61000002 - Executor MECH-W&F`).
+  - **Tab 2 — Input Akun Lainnya / Manual**: Input nomor Employee D365 kustom, nama user, dan password/PIN.
+- **Persistensi & Auto-Sync**: Sesi D365 disimpan di `SharedPreferences` (`d365_user_session_v1`). Saat kembali dari form ke dashboard gudang, status sesi otomatis sinkron dan menyediakan tombol direct **`Ganti`** atau **`Logout`**.
+
+#### 2. Arsitektur On-Demand Single Fetch (Efisiensi Tinggi)
+- **Problem**: Master catalog item D365 PLTU MSW memiliki puluhan ribu item dan stok bergerak sangat dinamis. Full-fetch akan menyebabkan *Out of Memory (OOM)*, latency tinggi, dan *stale stock*.
+- **Solusi**: 
+  - Pengecekan barang dan sisa stok dilakukan **murni On-Demand (`GET /api/d365/items/{itemNumber}`)** hanya saat item discan atau diketik.
+  - Payload super ringan (**< 1 KB**), latency sangat cepat (**< 200 ms**), dan angka stok dipastikan **100% real-time**.
+  - Modal **Search Item D365** disajikan dengan **list kosong di awal** dan hanya menampilkan hasil saat user mengetik kata kunci (*search by contains name / item number*).
+
+#### 3. Master List Fix D365 yang Diintegrasikan
+- **19 Gudang (Warehouse)**: `MAINSTORE`, `CHEMSTORE`, `COALSTORE`, `FUELSTORE`, `HO-01`, `IBT-01`, `LAYDOWN`, `LIMESTORE`, `MAINWORK`, `MSW04-01`, `MSW05-02`, `MSW06-03`, `NSSTORE`, `OILSTORE`, `SAFETYSTORE`, `SANDSTORE`, `SAWDUSTSTORE`, `WATERSTORE`, `WOODSTORE`.
+- **86 Activity Dimension Values**: Dari `6100AC0000 - NON` hingga `6100AC9906 - Interco - APM`. Nilai yang dikirimkan ke D365 adalah **kode dimensi** (misal: `6100AC5403`).
+- **39 Cost Center Operating Units**: Dari `6100DB101 - MSW_Director` hingga `6100DB802 - MSW_Accounting`. Nilai yang dikirimkan ke D365 adalah **kode unit** (misal: `6100DB401`).
+- **Dynamic Unit Type**: D365 mengirimkan satuan resmi barang secara dinamis (contoh: `PCS`, `SET`, `LTR`, `KG`, `UNIT`), menggantikan kategori statis.
+
+#### 4. Barcode & QR Camera Scanner (`mobile_scanner` v6.0.11)
+- Viewfinder responsif dengan **animasi laser scanning beam**.
+- Tombol toggle senter / flash kamera (`torchState`).
+- Tombol switch kamera depan / belakang (`cameraFacingState`).
+- Modal fallback input manual dengan auto-formatting titik `XX.XXX.XXX.XXXX`.
+
+#### 5. Format Payload Transaksi ke Endpoint D365 (`POST /api/d365/material-issues`)
+```json
+{
+  "transactionId": "TRX-1725001420",
+  "woNumber": "WO-2026-0815",
+  "warehouseLocation": "MAINSTORE",
+  "activity": "6100AC5403",
+  "costCenter": "6100DB401",
+  "requestBy": "61000003",
+  "submittedBy": "61000003",
+  "employeeCode": "61000003",
+  "transactionDate": "2026-08-30T10:39:00.000Z",
+  "remarks": "Penggantian bearing dan seal pompa CWP 1A",
+  "items": [
+    {
+      "itemNumber": "01.001.001.0004",
+      "itemName": "BEARING 6204-2RS C3 SKF",
+      "quantity": 2.0,
+      "unitType": "PCS",
+      "location": "RAK-A2 / BIN-04"
+    },
+    {
+      "itemNumber": "01.002.001.0012",
+      "itemName": "MECHANICAL SEAL TYPE B-35MM",
+      "quantity": 1.0,
+      "unitType": "SET",
+      "location": "RAK-B1 / BIN-02"
+    }
+  ]
+}
+```
 
 ---
 

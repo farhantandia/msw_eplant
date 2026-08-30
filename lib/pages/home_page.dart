@@ -12,7 +12,7 @@ import 'package:msw_eplant/pages/plant_page.dart';
 import 'package:msw_eplant/pages/analytics_page.dart';
 import 'package:msw_eplant/pages/okr_page.dart';
 import 'package:msw_eplant/pages/logsheet/logsheet_page.dart';
-import 'package:msw_eplant/widgets/role_strip.dart';
+import 'package:msw_eplant/pages/warehouse/warehouse_page.dart';
 import 'package:msw_eplant/widgets/menu_grid.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -144,17 +144,13 @@ bool _isLive = false;
   Widget build(BuildContext context) {
     final color = AppColors.roleColor(widget.role.label);
     final hour = DateTime.now().hour;
-    final greeting = hour < 12 ? 'Selamat pagi' : (hour < 17 ? 'Selamat siang' : 'Selamat malam');
+    final greeting = hour < 12 ? 'Good Morning' : (hour < 17 ? 'Good Afternoon' : 'Good Evening');
     final roleName = widget.role == UserRole.operation
-        ? 'Operator Shift I'
+        ? 'Plant Operator!'
         : widget.role == UserRole.maintenance
         ? 'Maintenance Engineer!'
-        : 'Guest / Karyawan MSW';
-    final shiftInfo = widget.role == UserRole.operation
-        ? 'Shift I \u00B7 07:00\u201315:00'
-        : widget.role == UserRole.maintenance
-        ? '12 Jun 2026'
-        : 'View only';
+        : 'MSW Warrior';
+   
 
     return Container(
       decoration: BoxDecoration(
@@ -174,13 +170,12 @@ bool _isLive = false;
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildTopBar(color),
-                RoleStrip(role: widget.role, subtitle: shiftInfo),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(greeting, style: const TextStyle(fontSize: 14, color: AppColors.textSub)),
+                      Text(greeting, style: const TextStyle(fontSize: 14, color: AppColors.text)),
                       const SizedBox(height: 2),
                       Text(
                         roleName,
@@ -455,7 +450,7 @@ bool _isLive = false;
       'solar': () => _showComingSoon('Solar PV'),
       'analytics': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AnalyticsPage())),
       'hazard': () => _openHazardReport(),
-      'warehouse': () => _showComingSoon('Warehouse'),
+      'warehouse': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WarehousePage())),
       'okr': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const OkrPage())),
     };
     if (widget.role == UserRole.maintenance) {
