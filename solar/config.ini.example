@@ -1,0 +1,38 @@
+[fusionsolar]
+base_url    = https://intl.fusionsolar.huawei.com/thirdData
+username    = your_fusionsolar_username
+system_code = your_fusionsolar_system_code
+
+[excel]
+file       = new_data.xlsx
+sheet_name = Sheet1
+header_row = 2
+
+# day = 0  → hari ini
+# day = -1 → kemarin
+# day = -7 → 7 hari terakhir (multi-row)
+# day = +1 → error (tidak bisa ambil data masa depan)
+[settings]
+day = -1
+
+[inverter_order]
+list =
+    INV PLTS 165 kWp 1
+    INV PLTS 165 kWp 2
+    INV PLTS 165 kWp 3
+    INV PLTS 165 kWp 4
+    INV_PLTS_200_KWP_1
+    INV_PLTS_200_KWP_2
+    INV PLTS 15 kWp
+    INV PLTS 20 kWp
+    Inverter(COM1-1)
+    Inverter(COM1-2)
+    Inverter(COM1-3)
+    Inverter(COM1-5)
+
+[inverter_468]
+list =
+    Inverter(COM1-1)
+    Inverter(COM1-2)
+    Inverter(COM1-3)
+    Inverter(COM1-5)

@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "362899520825",
+    "firebase_url": "https://mswproject-bf2cd-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "mswproject-bf2cd",
+    "storage_bucket": "mswproject-bf2cd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:362899520825:android:647c5f4757fdd3767afce8",
+        "android_client_info": {
+          "package_name": "com.example.msw_eplant"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDToGSoI_BMLSdQsU9er5JIOjxngvuuSks"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
