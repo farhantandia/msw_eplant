@@ -2,8 +2,6 @@
 
 <div align="center">
 
-![MSW ePlant Banner](Picture1.png)
-
 ### **Enterprise Plant Monitoring & Warehouse Operations App**
 **PT Makmur Sejahtera Wisesa (MSW) — Adaro Energy Solutions**  
 *2×30 MW CFPP + 868 kWp Solar PV Plant — Tanjung, Tabalong, South Kalimantan, Indonesia*
