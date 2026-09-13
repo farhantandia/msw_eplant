@@ -421,6 +421,15 @@ class SolarSnapshot {
   // Plant-specific distinct telemetry (Kelanis 468 kWp vs MSW 400 kWp)
   final Map<String, double> plantIrradiance;
   final Map<String, double> plantPr;
+  final Map<String, double> plantYieldYesterday;
+
+  // Yesterday total and per-plant metrics
+  final double irradianceYesterday; // kWh/m²
+  final double performanceRatioYesterday; // %
+  final double peakPowerYesterday; // kW
+  final Map<String, double> plantIrradianceYesterday;
+  final Map<String, double> plantPrYesterday;
+  final Map<String, double> plantPeakPowerYesterday;
 
   const SolarSnapshot({
     required this.timestamp,
@@ -439,6 +448,13 @@ class SolarSnapshot {
     required this.hourlyPoints,
     this.plantIrradiance = const {},
     this.plantPr = const {},
+    this.plantYieldYesterday = const {},
+    this.irradianceYesterday = 0.0,
+    this.performanceRatioYesterday = 0.0,
+    this.peakPowerYesterday = 0.0,
+    this.plantIrradianceYesterday = const {},
+    this.plantPrYesterday = const {},
+    this.plantPeakPowerYesterday = const {},
   });
 
   int get totalAlarmCount => inverters.fold(0, (sum, inv) => sum + inv.activeAlarms.length);
@@ -474,6 +490,58 @@ class SolarSnapshot {
     return hour >= 18 || hour < 6;
   }
 
+  SolarSnapshot copyWith({
+    DateTime? timestamp,
+    bool? isLive,
+    double? totalPowerKw,
+    double? peakPowerKw,
+    double? totalYieldTodayKwh,
+    double? yieldYesterdayKwh,
+    double? irradiance,
+    double? performanceRatio,
+    double? gridExportKw,
+    int? onlineInverterCount,
+    int? totalInverterCount,
+    double? totalCapacityKwp,
+    List<SolarInverter>? inverters,
+    List<SolarHourlyPoint>? hourlyPoints,
+    Map<String, double>? plantIrradiance,
+    Map<String, double>? plantPr,
+    Map<String, double>? plantYieldYesterday,
+    double? irradianceYesterday,
+    double? performanceRatioYesterday,
+    double? peakPowerYesterday,
+    Map<String, double>? plantIrradianceYesterday,
+    Map<String, double>? plantPrYesterday,
+    Map<String, double>? plantPeakPowerYesterday,
+  }) {
+    return SolarSnapshot(
+      timestamp: timestamp ?? this.timestamp,
+      isLive: isLive ?? this.isLive,
+      totalPowerKw: totalPowerKw ?? this.totalPowerKw,
+      peakPowerKw: peakPowerKw ?? this.peakPowerKw,
+      totalYieldTodayKwh: totalYieldTodayKwh ?? this.totalYieldTodayKwh,
+      yieldYesterdayKwh: yieldYesterdayKwh ?? this.yieldYesterdayKwh,
+      irradiance: irradiance ?? this.irradiance,
+      performanceRatio: performanceRatio ?? this.performanceRatio,
+      gridExportKw: gridExportKw ?? this.gridExportKw,
+      onlineInverterCount: onlineInverterCount ?? this.onlineInverterCount,
+      totalInverterCount: totalInverterCount ?? this.totalInverterCount,
+      totalCapacityKwp: totalCapacityKwp ?? this.totalCapacityKwp,
+      inverters: inverters ?? this.inverters,
+      hourlyPoints: hourlyPoints ?? this.hourlyPoints,
+      plantIrradiance: plantIrradiance ?? this.plantIrradiance,
+      plantPr: plantPr ?? this.plantPr,
+      plantYieldYesterday: plantYieldYesterday ?? this.plantYieldYesterday,
+      irradianceYesterday: irradianceYesterday ?? this.irradianceYesterday,
+      performanceRatioYesterday: performanceRatioYesterday ?? this.performanceRatioYesterday,
+      peakPowerYesterday: peakPowerYesterday ?? this.peakPowerYesterday,
+      plantIrradianceYesterday: plantIrradianceYesterday ?? this.plantIrradianceYesterday,
+      plantPrYesterday: plantPrYesterday ?? this.plantPrYesterday,
+      plantPeakPowerYesterday: plantPeakPowerYesterday ?? this.plantPeakPowerYesterday,
+    );
+  }
+
   SolarSnapshot forPlant(String targetPlantId) {
     final plantInvs = inverters.where((i) => i.resolvedPlantId == targetPlantId).toList();
     final targetCap = targetPlantId == 'kelanis' ? 468.0 : 400.0;
@@ -485,15 +553,36 @@ class SolarSnapshot {
     // Distinct plant PR: use specific station PR from API (no artificial offset)
     final pPr = plantPr[targetPlantId] ?? performanceRatio;
 
+    final ratio = totalCapacityKwp > 0
+        ? (targetCap / totalCapacityKwp)
+        : (targetPlantId == 'kelanis' ? 468.0 / 868.0 : 400.0 / 868.0);
+
+    final rawYesterdayYield = plantYieldYesterday[targetPlantId] ??
+        (yieldYesterdayKwh > 0 ? double.parse((yieldYesterdayKwh * ratio).toStringAsFixed(1)) : 0.0);
+    final preservedYesterday = rawYesterdayYield;
+
+    final rawYesterdayIrr = plantIrradianceYesterday[targetPlantId] ??
+        (irradianceYesterday > 0
+            ? irradianceYesterday
+            : (preservedYesterday > 0
+                ? double.parse((preservedYesterday / (targetCap * 0.82)).clamp(1.0, 7.0).toStringAsFixed(2))
+                : 0.0));
+    final preservedYesterdayIrr = rawYesterdayIrr;
+
+    final rawYesterdayPr = plantPrYesterday[targetPlantId] ??
+        (performanceRatioYesterday > 0 ? performanceRatioYesterday : performanceRatio);
+    final preservedYesterdayPr = rawYesterdayPr;
+
+    final rawYesterdayPeak = plantPeakPowerYesterday[targetPlantId] ??
+        ((peakPowerYesterday > 0 && peakPowerYesterday < 1000.0)
+            ? double.parse((peakPowerYesterday * ratio).toStringAsFixed(1))
+            : (peakPowerKw > 0 ? double.parse((peakPowerKw * ratio).toStringAsFixed(1)) : 0.0));
+    final preservedYesterdayPeak = rawYesterdayPeak;
+
     if (plantInvs.isEmpty) {
-      // Preserve yield and peak proportionally when plant inverters are missing
-      // (e.g. during night standby when inverter list comes from cache without plantId resolution)
-      final ratio = totalCapacityKwp > 0
-          ? (targetCap / totalCapacityKwp)
-          : (targetPlantId == 'kelanis' ? 468.0 / 868.0 : 400.0 / 868.0);
       final preservedYield = totalYieldTodayKwh > 0 ? double.parse((totalYieldTodayKwh * ratio).toStringAsFixed(1)) : 0.0;
       final preservedPeak = peakPowerKw > 0 ? double.parse((peakPowerKw * ratio).toStringAsFixed(1)) : 0.0;
-      final preservedYesterday = yieldYesterdayKwh > 0 ? double.parse((yieldYesterdayKwh * ratio).toStringAsFixed(1)) : 0.0;
+
       return SolarSnapshot(
         timestamp: timestamp,
         isLive: isLive,
@@ -511,17 +600,19 @@ class SolarSnapshot {
         hourlyPoints: hourlyPoints,
         plantIrradiance: {targetPlantId: pIrr},
         plantPr: {targetPlantId: pPr},
+        plantYieldYesterday: {targetPlantId: preservedYesterday},
+        irradianceYesterday: preservedYesterdayIrr,
+        performanceRatioYesterday: preservedYesterdayPr,
+        peakPowerYesterday: preservedYesterdayPeak,
+        plantIrradianceYesterday: {targetPlantId: preservedYesterdayIrr},
+        plantPrYesterday: {targetPlantId: preservedYesterdayPr},
+        plantPeakPowerYesterday: {targetPlantId: preservedYesterdayPeak},
       );
     }
 
     final pPower = plantInvs.fold(0.0, (sum, i) => sum + i.powerKw);
     final pYieldRaw = plantInvs.fold(0.0, (sum, i) => sum + i.yieldTodayKwh);
     final onlineCount = plantInvs.where((i) => i.status == InverterStatus.normal).length;
-
-    final ratio = totalCapacityKwp > 0
-        ? (targetCap / totalCapacityKwp)
-        : (targetPlantId == 'kelanis' ? 468.0 / 868.0 : 400.0 / 868.0);
-    final plantYesterday = double.parse((yieldYesterdayKwh * ratio).toStringAsFixed(1));
     final plantPeak = double.parse((peakPowerKw * ratio).toStringAsFixed(1));
 
     // Use per-plant hourly data if available from API; otherwise scale proportionally
@@ -564,7 +655,7 @@ class SolarSnapshot {
       totalPowerKw: double.parse(pPower.toStringAsFixed(1)),
       peakPowerKw: plantPeak > pPower ? plantPeak : pPower,
       totalYieldTodayKwh: double.parse(effectiveYield.toStringAsFixed(1)),
-      yieldYesterdayKwh: plantYesterday,
+      yieldYesterdayKwh: preservedYesterday,
       irradiance: pIrr,
       performanceRatio: pPr,
       gridExportKw: double.parse(pPower.toStringAsFixed(1)),
@@ -575,6 +666,13 @@ class SolarSnapshot {
       hourlyPoints: plantHourly,
       plantIrradiance: {targetPlantId: pIrr},
       plantPr: {targetPlantId: pPr},
+      plantYieldYesterday: {targetPlantId: preservedYesterday},
+      irradianceYesterday: preservedYesterdayIrr,
+      performanceRatioYesterday: preservedYesterdayPr,
+      peakPowerYesterday: preservedYesterdayPeak,
+      plantIrradianceYesterday: {targetPlantId: preservedYesterdayIrr},
+      plantPrYesterday: {targetPlantId: preservedYesterdayPr},
+      plantPeakPowerYesterday: {targetPlantId: preservedYesterdayPeak},
     );
   }
 
@@ -646,6 +744,13 @@ class SolarSnapshot {
     'performance_ratio': performanceRatio,
     'plant_irradiance': plantIrradiance,
     'plant_pr': plantPr,
+    'plant_yield_yesterday': plantYieldYesterday,
+    'irradiance_yesterday': irradianceYesterday,
+    'performance_ratio_yesterday': performanceRatioYesterday,
+    'peak_power_yesterday': peakPowerYesterday,
+    'plant_irradiance_yesterday': plantIrradianceYesterday,
+    'plant_pr_yesterday': plantPrYesterday,
+    'plant_peak_power_yesterday': plantPeakPowerYesterday,
     'grid_export_kw': gridExportKw,
     'online_inverter_count': onlineInverterCount,
     'total_inverter_count': totalInverterCount,
@@ -688,6 +793,34 @@ class SolarSnapshot {
       });
     }
 
+    final Map<String, double> plantYieldYesterdayMap = {};
+    if (json['plant_yield_yesterday'] is Map) {
+      (json['plant_yield_yesterday'] as Map).forEach((k, v) {
+        if (v is num) plantYieldYesterdayMap[k.toString()] = v.toDouble();
+      });
+    }
+
+    final Map<String, double> plantIrrYesterdayMap = {};
+    if (json['plant_irradiance_yesterday'] is Map) {
+      (json['plant_irradiance_yesterday'] as Map).forEach((k, v) {
+        if (v is num) plantIrrYesterdayMap[k.toString()] = v.toDouble();
+      });
+    }
+
+    final Map<String, double> plantPrYesterdayMap = {};
+    if (json['plant_pr_yesterday'] is Map) {
+      (json['plant_pr_yesterday'] as Map).forEach((k, v) {
+        if (v is num) plantPrYesterdayMap[k.toString()] = v.toDouble();
+      });
+    }
+
+    final Map<String, double> plantPeakYesterdayMap = {};
+    if (json['plant_peak_power_yesterday'] is Map) {
+      (json['plant_peak_power_yesterday'] as Map).forEach((k, v) {
+        if (v is num) plantPeakYesterdayMap[k.toString()] = v.toDouble();
+      });
+    }
+
     return SolarSnapshot(
       timestamp: dt,
       isLive: json['is_live'] == true,
@@ -699,6 +832,13 @@ class SolarSnapshot {
       performanceRatio: (json['performance_ratio'] as num?)?.toDouble() ?? 80.0,
       plantIrradiance: plantIrr,
       plantPr: plantPrMap,
+      plantYieldYesterday: plantYieldYesterdayMap,
+      irradianceYesterday: (json['irradiance_yesterday'] as num?)?.toDouble() ?? 0.0,
+      performanceRatioYesterday: (json['performance_ratio_yesterday'] as num?)?.toDouble() ?? 0.0,
+      peakPowerYesterday: (json['peak_power_yesterday'] as num?)?.toDouble() ?? 0.0,
+      plantIrradianceYesterday: plantIrrYesterdayMap,
+      plantPrYesterday: plantPrYesterdayMap,
+      plantPeakPowerYesterday: plantPeakYesterdayMap,
       gridExportKw: (json['grid_export_kw'] as num?)?.toDouble() ?? 0.0,
       onlineInverterCount: (json['online_inverter_count'] as num?)?.toInt() ?? invs.length,
       totalInverterCount: (json['total_inverter_count'] as num?)?.toInt() ?? invs.length,

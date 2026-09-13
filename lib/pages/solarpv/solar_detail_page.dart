@@ -8,7 +8,6 @@ import 'package:msw_eplant/widgets/solar_energy_flow_widget.dart';
 import 'package:intl/intl.dart';
 import 'package:msw_eplant/pages/solarpv/solar_numeric_trend_sheet.dart';
 import 'package:msw_eplant/pages/solarpv/solar_landscape_trend_page.dart';
-import 'package:msw_eplant/pages/weather_page.dart';
 import 'package:msw_eplant/services/dashboard_share_service.dart';
 
 // ============================================================================
@@ -383,7 +382,7 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.center,
                     child: Text(
-                      '${DateFormat("dd MMM yyyy, HH:mm").format(snapshot.timestamp)}',
+                      DateFormat("dd MMM yyyy, HH:mm").format(snapshot.timestamp),
                       style: SolarPageFonts.appBarSubtitle,
                     ),
                   ),
@@ -497,8 +496,14 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
 
   // ── HERO GENERATION CARD ──────────────────────────────────
   Widget _buildHeroGenerationCard(SolarSnapshot snapshot) {
+    final isYesterday = _selectedTab == 1;
     final delta = snapshot.yieldDeltaPct;
     final isPositive = delta >= 0;
+
+    final cardTitle = isYesterday ? 'TOTAL GENERATION YESTERDAY' : 'TOTAL GENERATION TODAY';
+    final cardYieldVal = isYesterday
+        ? (snapshot.yieldYesterdayKwh > 0 ? snapshot.yieldYesterdayKwh : snapshot.effectiveYieldTodayKwh)
+        : snapshot.effectiveYieldTodayKwh;
 
     return GestureDetector(
       onTap: () => SolarNumericTrendSheet.show(
@@ -506,6 +511,8 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
         metricType: SolarMetricType.dailyYield,
         plantId: _activePlantId,
         currentValue: snapshot.effectiveYieldTodayKwh,
+        yesterdayValue: snapshot.yieldYesterdayKwh,
+        initialTimeframe: _selectedTab,
       ),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -523,11 +530,11 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   flex: 3,
                   child: Text(
-                    'TOTAL GENERATION TODAY',
-                    style: TextStyle(
+                    cardTitle,
+                    style: const TextStyle(
                       fontSize: AppTheme.fs12,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textSub,
@@ -555,7 +562,9 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                         ),
                       ),
                       child: Text(
-                        '${isPositive ? '+' : ''}${delta.toStringAsFixed(1)}% vs Yesterday',
+                        isYesterday
+                            ? '${isPositive ? '-' : '+'}${delta.abs().toStringAsFixed(1)}% vs Today'
+                            : '${isPositive ? '+' : ''}${delta.toStringAsFixed(1)}% vs Yesterday',
                         style: TextStyle(
                           fontSize: AppTheme.fs11,
                           fontWeight: FontWeight.w700,
@@ -577,7 +586,7 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      snapshot.effectiveYieldTodayKwh.toStringAsFixed(1),
+                      cardYieldVal.toStringAsFixed(1),
                       style: const TextStyle(
                         fontSize: AppTheme.fs34,
                         fontWeight: FontWeight.w900,
@@ -592,29 +601,33 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                   'kWh',
                   style: TextStyle(fontSize: AppTheme.fs18, fontWeight: FontWeight.w700, color: AppColors.primary),
                 ),
-
-                
               ],
             ),
             const SizedBox(height: 6),
             Row(
               children: [
                 Icon(
-                  snapshot.isNightTime ? Icons.nightlight_outlined : Icons.bolt_rounded,
+                  isYesterday
+                      ? Icons.history_rounded
+                      : (snapshot.isNightTime ? Icons.nightlight_outlined : Icons.bolt_rounded),
                   size: 14,
-                  color: snapshot.isNightTime ? AppColors.textDim : const Color(0xFF00E5A0),
+                  color: isYesterday
+                      ? const Color(0xFF38BDF8)
+                      : (snapshot.isNightTime ? AppColors.textDim : const Color(0xFF00E5A0)),
                 ),
                 const SizedBox(width: 4),
                 Expanded(
                   flex: 3,
                   child: Text(
-                    snapshot.isNightTime
-                        ? 'Inverters on standby mode'
-                        : 'Real-time: ${snapshot.totalPowerKw.toStringAsFixed(1)} kW',
+                    isYesterday
+                        ? 'Full day historical cycle'
+                        : (snapshot.isNightTime
+                            ? 'Inverters on standby mode'
+                            : 'Real-time: ${snapshot.totalPowerKw.toStringAsFixed(1)} kW'),
                     style: TextStyle(
                       fontSize: AppTheme.fs12,
                       fontWeight: FontWeight.w500,
-                      color: snapshot.isNightTime ? AppColors.textDim : AppColors.textSub,
+                      color: (isYesterday || !snapshot.isNightTime) ? AppColors.textSub : AppColors.textDim,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -626,7 +639,9 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerRight,
                     child: Text(
-                      'Yesterday: ${snapshot.yieldYesterdayKwh.toStringAsFixed(0)} kWh',
+                      isYesterday
+                          ? 'Today: ${snapshot.effectiveYieldTodayKwh.toStringAsFixed(0)} kWh'
+                          : 'Yesterday: ${snapshot.yieldYesterdayKwh.toStringAsFixed(0)} kWh',
                       style: const TextStyle(fontSize: AppTheme.fs12, color: AppColors.textSub),
                     ),
                   ),
@@ -641,7 +656,11 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
 
   // ── QUICK METRICS ─────────────────────────────────────────
   Widget _buildQuickMetrics(SolarSnapshot snapshot) {
-    final pr = snapshot.performanceRatio;
+    final isYesterday = _selectedTab == 1;
+
+    final pr = isYesterday
+        ? (snapshot.performanceRatioYesterday > 0 ? snapshot.performanceRatioYesterday : snapshot.performanceRatio)
+        : snapshot.performanceRatio;
     final prQuality = pr >= 80
         ? 'Excellent'
         : pr >= 75
@@ -655,51 +674,76 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
         ? const Color(0xFFFFB020)
         : const Color(0xFFFF4D6A);
 
+    final peakPowerVal = isYesterday
+        ? (snapshot.peakPowerYesterday > 0 ? snapshot.peakPowerYesterday : snapshot.peakPowerKw)
+        : snapshot.peakPowerKw;
+    final peakSubtitle = isYesterday
+        ? 'Today: ${snapshot.peakPowerKw.toStringAsFixed(0)} kW'
+        : (snapshot.peakPowerYesterday > 0 ? 'Yest: ${snapshot.peakPowerYesterday.toStringAsFixed(0)} kW' : '100% capacity');
+
+    final prVal = pr;
+    final prSubtitle = isYesterday
+        ? 'Today: ${snapshot.performanceRatio.toStringAsFixed(1)}%'
+        : (snapshot.performanceRatioYesterday > 0 ? 'Yest: ${snapshot.performanceRatioYesterday.toStringAsFixed(1)}%' : prQuality);
+
+    final irrVal = isYesterday
+        ? (snapshot.irradianceYesterday > 0 ? snapshot.irradianceYesterday : snapshot.irradiance)
+        : snapshot.irradiance;
+    final irrSubtitle = isYesterday
+        ? (snapshot.irradiance > 0 ? 'Today: ${snapshot.irradiance.toStringAsFixed(2)}' : 'kWh/m²')
+        : (snapshot.irradianceYesterday > 0 ? 'Yest: ${snapshot.irradianceYesterday.toStringAsFixed(2)}' : 'kWh/m²');
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           Expanded(
             child: _buildMetricTile(
-              title: 'PEAK POWER',
-              value: '${snapshot.peakPowerKw.toStringAsFixed(0)} kW',
-              subtitle: '100% capacity',
+              title: isYesterday ? 'PEAK (YEST)' : 'PEAK POWER',
+              value: '${peakPowerVal.toStringAsFixed(0)} kW',
+              subtitle: peakSubtitle,
               accentColor: AppColors.solar,
               onTap: () => SolarNumericTrendSheet.show(
                 context,
                 metricType: SolarMetricType.power,
                 plantId: _activePlantId,
                 currentValue: snapshot.peakPowerKw,
+                yesterdayValue: snapshot.peakPowerYesterday > 0 ? snapshot.peakPowerYesterday : null,
+                initialTimeframe: _selectedTab,
               ),
             ),
           ),
           const SizedBox(width: 6),
           Expanded(
             child: _buildMetricTile(
-              title: 'PERF. RATIO',
-              value: '${snapshot.performanceRatio.toStringAsFixed(1)}%',
-              subtitle: prQuality,
+              title: isYesterday ? 'PR (YEST)' : 'PERF. RATIO',
+              value: '${prVal.toStringAsFixed(1)}%',
+              subtitle: prSubtitle,
               accentColor: prColor,
               onTap: () => SolarNumericTrendSheet.show(
                 context,
                 metricType: SolarMetricType.pr,
                 plantId: _activePlantId,
                 currentValue: snapshot.performanceRatio,
+                yesterdayValue: snapshot.performanceRatioYesterday > 0 ? snapshot.performanceRatioYesterday : null,
+                initialTimeframe: _selectedTab,
               ),
             ),
           ),
           const SizedBox(width: 6),
           Expanded(
             child: _buildMetricTile(
-              title: 'IRRADIANCE',
-              value: snapshot.irradiance > 0 ? snapshot.irradiance.toStringAsFixed(2) : '—',
-              subtitle: 'kWh/m²',
+              title: isYesterday ? 'IRR (YEST)' : 'IRRADIANCE',
+              value: irrVal > 0 ? irrVal.toStringAsFixed(2) : '—',
+              subtitle: irrSubtitle,
               accentColor: const Color(0xFFFFB020),
               onTap: () => SolarNumericTrendSheet.show(
                 context,
                 metricType: SolarMetricType.irradiance,
                 plantId: _activePlantId,
-                currentValue: snapshot.irradiance * 1000.0,
+                currentValue: snapshot.irradiance,
+                yesterdayValue: snapshot.irradianceYesterday > 0 ? snapshot.irradianceYesterday : null,
+                initialTimeframe: _selectedTab,
               ),
             ),
           ),
@@ -708,13 +752,15 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
             child: _buildMetricTile(
               title: 'ONLINE',
               value: '${snapshot.onlineInverterCount}/${snapshot.totalInverterCount}',
-              subtitle: 'Inverters',
+              subtitle: isYesterday ? 'Yest Active' : 'Inverters',
               accentColor: AppColors.solar,
               onTap: () => SolarNumericTrendSheet.show(
                 context,
                 metricType: SolarMetricType.power,
                 plantId: _activePlantId,
                 currentValue: snapshot.totalPowerKw,
+                yesterdayValue: snapshot.peakPowerYesterday > 0 ? snapshot.peakPowerYesterday : null,
+                initialTimeframe: _selectedTab,
               ),
             ),
           ),
@@ -813,9 +859,36 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
 
     // HOURLY VIEW (TODAY or YESTERDAY)
     final yesterdayPoints = _solarService.yesterdayHourlyPoints;
-    final points = isYesterday
-        ? (yesterdayPoints ?? const <SolarHourlyPoint>[])
-        : snapshot.hourlyPoints;
+    List<SolarHourlyPoint> points;
+    if (isYesterday) {
+      final yPoints = yesterdayPoints ?? const <SolarHourlyPoint>[];
+      if (_activePlantId == 'all' || _activePlantId.isEmpty) {
+        points = yPoints;
+      } else {
+        final ratio = _activePlantId == 'kelanis' ? (468.0 / 868.0) : (400.0 / 868.0);
+        points = yPoints.map((h) {
+          final pd = h.plantData?[_activePlantId];
+          if (pd != null && ((pd['power'] ?? 0) > 0 || (pd['irradiance'] ?? 0) > 0)) {
+            return SolarHourlyPoint(
+              hour: h.hour,
+              timeStr: h.timeStr,
+              powerKw: double.parse((pd['power'] ?? 0.0).toStringAsFixed(1)),
+              irradiance: double.parse((pd['irradiance'] ?? 0.0).toStringAsFixed(2)),
+              pr: double.parse((pd['pr'] ?? 0.0).toStringAsFixed(1)),
+            );
+          }
+          return SolarHourlyPoint(
+            hour: h.hour,
+            timeStr: h.timeStr,
+            powerKw: double.parse((h.powerKw * ratio).toStringAsFixed(1)),
+            irradiance: h.irradiance,
+            pr: h.pr,
+          );
+        }).toList();
+      }
+    } else {
+      points = snapshot.hourlyPoints;
+    }
 
     // If Yesterday selected but no data available, show empty with message
     final showNoDataMessage = isYesterday && (yesterdayPoints == null || yesterdayPoints.isEmpty);
@@ -840,7 +913,7 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
           primaryLabel = 'Yield (Hourly)';
           primaryUnit = 'kWh';
           primaryColor = AppColors.solar;
-          cumulativeYield += p.powerKw * 0.85; // approx slice
+          cumulativeYield += p.powerKw;
           val = cumulativeYield;
           break;
         case 2: // Performance Ratio — use actual hourly PR from API
@@ -1197,6 +1270,8 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                 metricType: _getMetricTypeForParamIndex(_selectedParamIndex),
                 plantId: _activePlantId,
                 currentValue: maxVal,
+                yesterdayValue: isYesterday ? maxVal : null,
+                initialTimeframe: _selectedTab,
               );
             },
             child: Container(

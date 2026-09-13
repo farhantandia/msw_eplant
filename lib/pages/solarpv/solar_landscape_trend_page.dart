@@ -35,6 +35,12 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
   void initState() {
     super.initState();
     _activeMetric = widget.initialMetric;
+    if (widget.inverterId == null &&
+        (_activeMetric == SolarMetricType.coal ||
+            _activeMetric == SolarMetricType.co2 ||
+            _activeMetric == SolarMetricType.gridExport)) {
+      _activeMetric = SolarMetricType.power;
+    }
     _selectedTimeframe = widget.initialTimeframe.clamp(0, 1);
 
     // Lock to landscape orientation and enable immersive sticky mode
@@ -103,7 +109,7 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
             val = p.powerKw * invCapRatio;
             break;
           case SolarMetricType.dailyYield:
-            cumulativeYield += (p.powerKw * invCapRatio) * 0.85;
+            cumulativeYield += (p.powerKw * invCapRatio);
             val = cumulativeYield;
             break;
           case SolarMetricType.specificEnergy:
@@ -129,13 +135,14 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
         }
       } else if (widget.plantId != null) {
         // Plant-specific metrics
+        final plantRatio = widget.plantId == 'kelanis' ? (468.0 / 868.0) : (400.0 / 868.0);
         final pData = p.plantData?[widget.plantId];
         switch (_activeMetric) {
           case SolarMetricType.power:
-            val = pData?['power'] ?? (p.powerKw * 0.5);
+            val = pData?['power'] ?? (p.powerKw * plantRatio);
             break;
           case SolarMetricType.dailyYield:
-            cumulativeYield += (pData?['power'] ?? (p.powerKw * 0.5)) * 0.85;
+            cumulativeYield += (pData?['power'] ?? (p.powerKw * plantRatio));
             val = cumulativeYield;
             break;
           case SolarMetricType.irradiance:
@@ -145,7 +152,7 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
             val = pData?['pr'] ?? p.pr;
             break;
           default:
-            val = pData?['power'] ?? (p.powerKw * 0.5);
+            val = pData?['power'] ?? (p.powerKw * plantRatio);
         }
       } else {
         // Overall aggregate metrics
@@ -154,7 +161,7 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
             val = p.powerKw;
             break;
           case SolarMetricType.dailyYield:
-            cumulativeYield += p.powerKw * 0.85;
+            cumulativeYield += p.powerKw;
             val = cumulativeYield;
             break;
           case SolarMetricType.irradiance:
@@ -167,11 +174,11 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
             val = (p.powerKw > 20.0) ? (p.powerKw * 0.92) : 0.0;
             break;
           case SolarMetricType.co2:
-            cumulativeYield += p.powerKw * 0.85;
+            cumulativeYield += p.powerKw;
             val = double.parse((cumulativeYield * 0.00085).toStringAsFixed(2));
             break;
           case SolarMetricType.coal:
-            cumulativeYield += p.powerKw * 0.85;
+            cumulativeYield += p.powerKw;
             val = double.parse((cumulativeYield * 0.00040).toStringAsFixed(2));
             break;
           default:
@@ -203,9 +210,6 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
       SolarMetricType.dailyYield,
       SolarMetricType.irradiance,
       SolarMetricType.pr,
-      SolarMetricType.gridExport,
-      SolarMetricType.co2,
-      SolarMetricType.coal,
     ];
   }
 
