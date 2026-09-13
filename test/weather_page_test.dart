@@ -218,48 +218,6 @@ void main() {
       );
       expect(uvNight, equals(0.0));
     });
-
-    test('Jetty Kelanis Wind Risk evaluations', () {
-      final safe = WeatherService.calculateJettyWindRisk(windSpeedMs: 3.0, gustMs: 4.5);
-      expect(safe['level'], PlantRiskLevel.safe);
-
-      final warning = WeatherService.calculateJettyWindRisk(windSpeedMs: 8.0, gustMs: 10.0);
-      expect(warning['level'], PlantRiskLevel.caution);
-
-      final dangerous = WeatherService.calculateJettyWindRisk(windSpeedMs: 12.0, gustMs: 15.0);
-      expect(dangerous['level'], PlantRiskLevel.warning);
-    });
-
-    test('Coal Stockpile Moisture Risk evaluations', () {
-      final normal = WeatherService.calculateStockpileMoistureRisk(
-        humidityPct: 55,
-        rainMm: 0.0,
-      );
-      expect(normal['level'], PlantRiskLevel.safe);
-
-      final medium = WeatherService.calculateStockpileMoistureRisk(
-        humidityPct: 88,
-        rainMm: 0.0,
-      );
-      expect(medium['level'], PlantRiskLevel.caution);
-
-      final high = WeatherService.calculateStockpileMoistureRisk(
-        humidityPct: 92,
-        rainMm: 6.0,
-      );
-      expect(high['level'], PlantRiskLevel.warning);
-    });
-
-    test('Inverter Shelter Thermal Derating Risk evaluations', () {
-      final optimal = WeatherService.calculateThermalDeratingRisk(tempC: 28.0, humidityPct: 60);
-      expect(optimal['level'], PlantRiskLevel.safe);
-
-      final moderate = WeatherService.calculateThermalDeratingRisk(tempC: 34.5, humidityPct: 65);
-      expect(moderate['level'], PlantRiskLevel.caution);
-
-      final high = WeatherService.calculateThermalDeratingRisk(tempC: 39.5, humidityPct: 70);
-      expect(high['level'], PlantRiskLevel.warning);
-    });
   });
 
   group('WeatherPage UI & Interactivity Tests', () {
@@ -296,11 +254,9 @@ void main() {
       expect(find.textContaining('Sunrise:'), findsOneWidget);
       expect(find.textContaining('Sunset:'), findsOneWidget);
 
-      // Plant Advisory Section
-      expect(find.text('PLANT OPERATIONAL ADVISORY'), findsOneWidget);
-      expect(find.text('Inverter Shelter & Thermal Risk'), findsWidgets);
-      expect(find.text('Terminal Kelanis Jetty & Tongkang'), findsWidgets);
-      expect(find.text('Stockpile Batubara (Moisture)'), findsWidgets);
+      // Plant Advisory Section (removed per user request)
+      expect(find.text('PLANT OPERATIONAL ADVISORY'), findsNothing);
+      expect(find.text('Inverter Shelter & Thermal Risk'), findsNothing);
 
       // Synoptic Outlook
       expect(find.text('5-DAY SYNOPTIC FORECAST'), findsOneWidget);

@@ -6,9 +6,9 @@ import 'package:msw_eplant/pages/solarpv/inverter_detail_page.dart';
 import 'package:msw_eplant/services/fusion_solar_service.dart';
 import 'package:msw_eplant/widgets/solar_energy_flow_widget.dart';
 import 'package:intl/intl.dart';
-import 'package:msw_eplant/pages/weather_page.dart';
 import 'package:msw_eplant/pages/solarpv/solar_numeric_trend_sheet.dart';
 import 'package:msw_eplant/pages/solarpv/solar_landscape_trend_page.dart';
+import 'package:msw_eplant/pages/weather_page.dart';
 import 'package:msw_eplant/services/dashboard_share_service.dart';
 
 // ============================================================================
@@ -214,9 +214,9 @@ class SolarDetailPage extends StatefulWidget {
 
 class _SolarDetailPageState extends State<SolarDetailPage> {
   final FusionSolarService _solarService = FusionSolarService.instance;
-  int _selectedTab = 0; // 0: Today, 1: Yesterday, 2: 7 Days
+  int _selectedTab = 0; // 0: Today, 1: Yesterday
   int _selectedParamIndex = 0; // 0: Power & Irr, 1: Daily Yield, 2: Perf. Ratio, 3: Grid Export
-  Map<String, Map<String, dynamic>>? _history7Days;
+
   final Set<String> _expandedClusters = {};
   late String _activePlantId;
   final GlobalKey _solarDashboardKey = GlobalKey();
@@ -227,9 +227,6 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
     super.initState();
     _activePlantId = widget.initialPlant;
     _solarService.init();
-    _solarService.fetchHistory7Days().then((data) {
-      if (mounted) setState(() => _history7Days = data);
-    });
   }
 
   void _toggleCluster(String clusterName) {
@@ -395,7 +392,7 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
             },
           ),
           actions: [
-            IconButton(
+           IconButton(
               tooltip: 'Refresh',
               icon: const Icon(Icons.refresh_rounded, color: AppColors.solar, size: 22),
               onPressed: () => _solarService.syncNow(forceRefresh: true),
@@ -800,16 +797,7 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
   }
 
   Widget _buildGenerationChart(SolarSnapshot snapshot) {
-    final is7Days = _selectedTab == 2;
     final isYesterday = _selectedTab == 1;
-
-    // Date keys for 7-day view
-    final now = DateTime.now();
-    final dayLabels = <String>[];
-    for (int i = 6; i >= 0; i--) {
-      final d = now.subtract(Duration(days: i));
-      dayLabels.add(DateFormat('dd/MM').format(d));
-    }
 
     final primarySpots = <FlSpot>[];
     final secondarySpots = <FlSpot>[]; // Used for Irradiance when in Param 0 & Hourly
@@ -823,106 +811,59 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
     String primaryUnit = 'kW';
     Color primaryColor = AppColors.primary;
 
-    if (is7Days) {
-      // 7-DAY AGGREGATE VIEW
-      for (int i = 0; i < 7; i++) {
-        final d = now.subtract(Duration(days: 6 - i));
-        final dateKey = DateFormat('yyyy-MM-dd').format(d);
-        final dayData = _history7Days?[dateKey];
+    // HOURLY VIEW (TODAY or YESTERDAY)
+    final yesterdayPoints = _solarService.yesterdayHourlyPoints;
+    final points = isYesterday
+        ? (yesterdayPoints ?? const <SolarHourlyPoint>[])
+        : snapshot.hourlyPoints;
 
-        double val = 0.0;
-        switch (_selectedParamIndex) {
-          case 0: // Power (Peak kW)
-            primaryLabel = 'Daily Peak Power';
-            primaryUnit = 'kW';
-            primaryColor = AppColors.primary;
-            val =
-                (dayData?['peak_kw'] as num?)?.toDouble() ??
-                (snapshot.peakPowerKw * (0.86 + ((i * 7) % 5) * 0.03)).clamp(0.0, 1000.0);
-            break;
-          case 1: // Daily Yield (kWh)
-            primaryLabel = 'Daily Yield';
-            primaryUnit = 'kWh';
-            primaryColor = AppColors.solar;
-            val =
-                (dayData?['yield_kwh'] as num?)?.toDouble() ??
-                (snapshot.effectiveYieldTodayKwh * (0.88 + ((i * 11) % 4) * 0.04)).clamp(0.0, 6000.0);
-            break;
-          case 2: // Perf. Ratio (%)
-            primaryLabel = 'Perf. Ratio';
-            primaryUnit = '%';
-            primaryColor = const Color(0xFF10B981);
-            val =
-                (dayData?['performance_ratio'] as num?)?.toDouble() ??
-                (snapshot.performanceRatio * (0.96 + ((i * 3) % 4) * 0.02)).clamp(70.0, 95.0);
-            break;
-          case 3: // Grid Export (kWh)
-            primaryLabel = 'Grid Export';
-            primaryUnit = 'kWh';
-            primaryColor = const Color(0xFF00E5FF);
-            val =
-                (dayData?['grid_export_kwh'] as num?)?.toDouble() ??
-                (snapshot.gridExportKw * 6.8 * (0.85 + ((i * 5) % 4) * 0.04)).clamp(0.0, 5000.0);
-            break;
-        }
+    // If Yesterday selected but no data available, show empty with message
+    final showNoDataMessage = isYesterday && (yesterdayPoints == null || yesterdayPoints.isEmpty);
 
+    double cumulativeYield = 0.0;
+    for (final p in points) {
+      final hour = p.hour.toDouble();
+      double val = 0.0;
+
+      switch (_selectedParamIndex) {
+        case 0: // Power & Irradiance
+          primaryLabel = 'Active Power';
+          primaryUnit = 'kW';
+          primaryColor = AppColors.primary;
+          val = p.powerKw;
+
+          // Secondary line: Irradiance in kWh/m² (as-is from FusionSolar API)
+          // Normalize to power scale for dual-axis display
+          secondarySpots.add(FlSpot(hour, irrValSafe(p.irradiance)));
+          break;
+        case 1: // Cumulative Yield
+          primaryLabel = 'Yield (Hourly)';
+          primaryUnit = 'kWh';
+          primaryColor = AppColors.solar;
+          cumulativeYield += p.powerKw * 0.85; // approx slice
+          val = cumulativeYield;
+          break;
+        case 2: // Performance Ratio — use actual hourly PR from API
+          primaryLabel = 'Perf. Ratio';
+          primaryUnit = '%';
+          primaryColor = const Color(0xFF10B981);
+          val = p.pr;
+          break;
+        case 3: // Grid Export (kW)
+          primaryLabel = 'Grid Export';
+          primaryUnit = 'kW';
+          primaryColor = const Color(0xFF00E5FF);
+          val = (p.powerKw > 20.0) ? (p.powerKw * 0.92) : 0.0;
+          break;
+      }
+
+      if (val > 0) {
         if (val > maxVal) maxVal = val;
         if (val < minVal) minVal = val;
         sumVal += val;
         count++;
-
-        primarySpots.add(FlSpot(i.toDouble(), val));
       }
-    } else {
-      // HOURLY VIEW (TODAY or YESTERDAY)
-      final points = snapshot.hourlyPoints;
-      final factor = isYesterday ? 0.94 : 1.0;
-
-      double cumulativeYield = 0.0;
-      for (final p in points) {
-        final hour = p.hour.toDouble();
-        double val = 0.0;
-
-        switch (_selectedParamIndex) {
-          case 0: // Power & Irradiance
-            primaryLabel = 'Active Power';
-            primaryUnit = 'kW';
-            primaryColor = AppColors.primary;
-            val = p.powerKw * factor;
-
-            // Secondary line: Irradiance in kWh/m² (as-is from FusionSolar API)
-            // Normalize to power scale for dual-axis display
-            secondarySpots.add(FlSpot(hour, irrValSafe(p.irradiance * factor)));
-            break;
-          case 1: // Cumulative Yield
-            primaryLabel = 'Yield (Hourly)';
-            primaryUnit = 'kWh';
-            primaryColor = AppColors.solar;
-            cumulativeYield += (p.powerKw * factor) * 0.85; // approx slice
-            val = cumulativeYield;
-            break;
-          case 2: // Performance Ratio — use actual hourly PR from API
-            primaryLabel = 'Perf. Ratio';
-            primaryUnit = '%';
-            primaryColor = const Color(0xFF10B981);
-            val = p.pr * factor;
-            break;
-          case 3: // Grid Export (kW)
-            primaryLabel = 'Grid Export';
-            primaryUnit = 'kW';
-            primaryColor = const Color(0xFF00E5FF);
-            val = (p.powerKw > 20.0) ? (p.powerKw * 0.92 * factor) : 0.0;
-            break;
-        }
-
-        if (val > 0) {
-          if (val > maxVal) maxVal = val;
-          if (val < minVal) minVal = val;
-          sumVal += val;
-          count++;
-        }
-        primarySpots.add(FlSpot(hour, val));
-      }
+      primarySpots.add(FlSpot(hour, val));
     }
 
     if (minVal == double.infinity) minVal = 0.0;
@@ -935,13 +876,13 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
     }
 
     double chartMaxY = (maxVal * 1.18).clamp(1.0, 5000.0);
-    if (!is7Days && _selectedParamIndex == 0) {
+    if (_selectedParamIndex == 0) {
       // Power dominates Y-axis; irradiance is normalized for overlay
       chartMaxY = (maxVal * 1.15).clamp(10.0, 2000.0);
     }
 
     // Scale factor to normalize irradiance onto the power Y-axis
-    final double irrScaleFactor = (!is7Days && _selectedParamIndex == 0 && maxIrr > 0)
+    final double irrScaleFactor = (_selectedParamIndex == 0 && maxIrr > 0)
         ? (chartMaxY / (maxIrr * 1.3)).clamp(1.0, 10000.0)
         : 1.0;
     final scaledIrrSpots = secondarySpots.map((s) => FlSpot(s.x, s.y * irrScaleFactor)).toList();
@@ -963,7 +904,7 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
               Expanded(
                 flex: 3,
                 child: Text(
-                  is7Days ? '7-DAY HISTORICAL TREND' : 'HOURLY PROFILE (${isYesterday ? 'YESTERDAY' : 'TODAY'})',
+                  'HOURLY PROFILE (${isYesterday ? 'YESTERDAY' : 'TODAY'})',
                   style: const TextStyle(
                     fontSize: AppTheme.fs12,
                     fontWeight: FontWeight.w700,
@@ -986,25 +927,22 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                       _buildTabButton('Today', 0),
                       const SizedBox(width: 4),
                       _buildTabButton('Yesterday', 1),
-                      const SizedBox(width: 4),
-                      _buildTabButton('7 Days', 2),
                       const SizedBox(width: 6),
                       Tooltip(
                         message: 'Fullscreen Landscape Trend',
                         child: InkWell(
-                          borderRadius: BorderRadius.circular(6),
                           onTap: () {
-                            Navigator.push(
-                              context,
+                            Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => SolarLandscapeTrendPage(
-                                  initialMetric: _getMetricTypeForParamIndex(_selectedParamIndex),
                                   plantId: _activePlantId,
+                                  initialMetric: _getMetricTypeForParamIndex(_selectedParamIndex),
                                   initialTimeframe: _selectedTab,
                                 ),
                               ),
                             );
                           },
+                          borderRadius: BorderRadius.circular(6),
                           child: Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
@@ -1012,7 +950,11 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                               borderRadius: BorderRadius.circular(6),
                               border: Border.all(color: AppColors.solar.withValues(alpha: 0.4)),
                             ),
-                            child: const Icon(Icons.fullscreen_rounded, size: 16, color: AppColors.solar),
+                            child: const Icon(
+                              Icons.fullscreen_rounded,
+                              size: 16,
+                              color: AppColors.solar,
+                            ),
                           ),
                         ),
                       ),
@@ -1060,7 +1002,7 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                     '$primaryLabel ($primaryUnit)',
                     style: TextStyle(fontSize: AppTheme.fs11, fontWeight: FontWeight.w600, color: primaryColor),
                   ),
-                  if (!is7Days && _selectedParamIndex == 0) ...[
+                  if (_selectedParamIndex == 0) ...[
                     const SizedBox(width: 16),
                     Container(
                       width: 12,
@@ -1081,75 +1023,80 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
           const SizedBox(height: 8),
 
           // fl_chart LineChart with Dynamic Series
-          SizedBox(
-            height: 165,
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (val) =>
-                      FlLine(color: AppColors.border.withValues(alpha: 0.4), strokeWidth: 1),
-                ),
-                titlesData: FlTitlesData(
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: !is7Days && _selectedParamIndex == 0,
-                      reservedSize: 38,
-                      getTitlesWidget: (val, meta) {
-                        // Convert from scaled power-axis back to actual irradiance kWh/m²
-                        if (irrScaleFactor <= 0) return const SizedBox.shrink();
-                        final actualIrr = val / irrScaleFactor;
-                        // Show labels at ~25%, 50%, 75% of max irradiance
-                        if (actualIrr <= 0 || val == 0 || val == meta.max) return const SizedBox.shrink();
-                        // Only show 2-3 tick labels to keep it clean
-                        final step = maxIrr > 0 ? (maxIrr / 3) : 0.3;
-                        final remainder = actualIrr % step;
-                        if (remainder > step * 0.2 && remainder < step * 0.8) return const SizedBox.shrink();
-                        return Text(
-                          actualIrr.toStringAsFixed(1),
-                          style: const TextStyle(
-                            fontSize: AppTheme.fs11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFFFFB300),
-                          ),
-                        );
-                      },
-                    ),
+          if (showNoDataMessage)
+            Container(
+              height: 165,
+              alignment: Alignment.center,
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.info_outline, color: AppColors.textDim, size: 28),
+                  SizedBox(height: 8),
+                  Text(
+                    'Data kemarin belum tersedia',
+                    style: TextStyle(color: AppColors.textDim, fontSize: AppTheme.fs13),
                   ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 38,
-                      getTitlesWidget: (val, meta) {
-                        if (val == meta.max || val == meta.min) return const SizedBox.shrink();
-                        return Text(
-                          val >= 1000 ? '${(val / 1000).toStringAsFixed(1)}k' : '${val.toInt()}',
-                          style: TextStyle(fontSize: AppTheme.fs11, fontWeight: FontWeight.w600, color: primaryColor),
-                        );
-                      },
-                    ),
+                ],
+              ),
+            )
+          else
+            SizedBox(
+              height: 165,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (val) =>
+                        FlLine(color: AppColors.border.withValues(alpha: 0.4), strokeWidth: 1),
                   ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 22,
-                      interval: is7Days ? 1 : 4,
-                      getTitlesWidget: (val, meta) {
-                        final idx = val.toInt();
-                        if (is7Days) {
-                          if (idx >= 0 && idx < dayLabels.length) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                dayLabels[idx],
-                                style: const TextStyle(fontSize: AppTheme.fs11, color: AppColors.textDim),
-                              ),
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        } else {
+                  titlesData: FlTitlesData(
+                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: _selectedParamIndex == 0,
+                        reservedSize: 38,
+                        getTitlesWidget: (val, meta) {
+                          // Convert from scaled power-axis back to actual irradiance kWh/m²
+                          if (irrScaleFactor <= 0) return const SizedBox.shrink();
+                          final actualIrr = val / irrScaleFactor;
+                          // Show labels at ~25%, 50%, 75% of max irradiance
+                          if (actualIrr <= 0 || val == 0 || val == meta.max) return const SizedBox.shrink();
+                          // Only show 2-3 tick labels to keep it clean
+                          final step = maxIrr > 0 ? (maxIrr / 3) : 0.3;
+                          final remainder = actualIrr % step;
+                          if (remainder > step * 0.2 && remainder < step * 0.8) return const SizedBox.shrink();
+                          return Text(
+                            actualIrr.toStringAsFixed(1),
+                            style: const TextStyle(
+                              fontSize: AppTheme.fs11,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFFFB300),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 38,
+                        getTitlesWidget: (val, meta) {
+                          if (val == meta.max || val == meta.min) return const SizedBox.shrink();
+                          return Text(
+                            val >= 1000 ? '${(val / 1000).toStringAsFixed(1)}k' : '${val.toInt()}',
+                            style: TextStyle(fontSize: AppTheme.fs11, fontWeight: FontWeight.w600, color: primaryColor),
+                          );
+                        },
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 22,
+                        interval: 4,
+                        getTitlesWidget: (val, meta) {
+                          final idx = val.toInt();
                           return Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Text(
@@ -1157,45 +1104,23 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                               style: const TextStyle(fontSize: AppTheme.fs11, color: AppColors.textDim),
                             ),
                           );
-                        }
-                      },
-                    ),
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                minX: is7Days ? 0 : 4,
-                maxX: is7Days ? 6 : 20,
-                minY: 0,
-                maxY: chartMaxY,
-                lineBarsData: [
-                  // Primary Series Bar
-                  LineChartBarData(
-                    spots: primarySpots,
-                    isCurved: true,
-                    curveSmoothness: 0.35,
-                    color: primaryColor,
-                    barWidth: 2.5,
-                    isStrokeCapRound: true,
-                    dotData: FlDotData(show: is7Days),
-                    belowBarData: BarAreaData(
-                      show: true,
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [primaryColor.withValues(alpha: 0.28), primaryColor.withValues(alpha: 0.0)],
+                        },
                       ),
                     ),
                   ),
-
-                  // Secondary Irradiance Bar (Only when hourly & param 0)
-                  if (!is7Days && _selectedParamIndex == 0 && scaledIrrSpots.isNotEmpty)
+                  borderData: FlBorderData(show: false),
+                  minX: 4,
+                  maxX: 20,
+                  minY: 0,
+                  maxY: chartMaxY,
+                  lineBarsData: [
+                    // Primary Series Bar
                     LineChartBarData(
-                      spots: scaledIrrSpots,
+                      spots: primarySpots,
                       isCurved: true,
                       curveSmoothness: 0.35,
-                      color: const Color(0xFFFFB300),
-                      barWidth: 2.0,
-                      dashArray: [6, 4],
+                      color: primaryColor,
+                      barWidth: 2.5,
                       isStrokeCapRound: true,
                       dotData: const FlDotData(show: false),
                       belowBarData: BarAreaData(
@@ -1203,45 +1128,64 @@ class _SolarDetailPageState extends State<SolarDetailPage> {
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [
-                            const Color(0xFFFFB300).withValues(alpha: 0.12),
-                            const Color(0xFFFFB300).withValues(alpha: 0.0),
-                          ],
+                          colors: [primaryColor.withValues(alpha: 0.28), primaryColor.withValues(alpha: 0.0)],
                         ),
                       ),
                     ),
-                ],
-                lineTouchData: LineTouchData(
-                  touchTooltipData: LineTouchTooltipData(
-                    getTooltipItems: (touchedSpots) {
-                      return touchedSpots.map((barSpot) {
-                        final idx = barSpot.x.toInt();
-                        final xHeader = is7Days
-                            ? (idx >= 0 && idx < dayLabels.length ? dayLabels[idx] : '')
-                            : '${idx.toString().padLeft(2, '0')}:00';
 
-                        if (barSpot.barIndex == 0) {
-                          return LineTooltipItem(
-                            '$xHeader\n$primaryLabel: ${barSpot.y.toStringAsFixed(1)} $primaryUnit',
-                            TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: AppTheme.fs11),
-                          );
-                        } else {
-                          return LineTooltipItem(
-                            '☀️ Irr: ${(barSpot.y / irrScaleFactor).toStringAsFixed(2)} kWh/m²',
-                            const TextStyle(
-                              color: Color(0xFFFFB300),
-                              fontWeight: FontWeight.bold,
-                              fontSize: AppTheme.fs11,
-                            ),
-                          );
-                        }
-                      }).toList();
-                    },
+                    // Secondary Irradiance Bar (Only when hourly & param 0)
+                    if (_selectedParamIndex == 0 && scaledIrrSpots.isNotEmpty)
+                      LineChartBarData(
+                        spots: scaledIrrSpots,
+                        isCurved: true,
+                        curveSmoothness: 0.35,
+                        color: const Color(0xFFFFB300),
+                        barWidth: 2.0,
+                        dashArray: [6, 4],
+                        isStrokeCapRound: true,
+                        dotData: const FlDotData(show: false),
+                        belowBarData: BarAreaData(
+                          show: true,
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              const Color(0xFFFFB300).withValues(alpha: 0.12),
+                              const Color(0xFFFFB300).withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((barSpot) {
+                          final idx = barSpot.x.toInt();
+                          final xHeader = '${idx.toString().padLeft(2, '0')}:00';
+
+                          if (barSpot.barIndex == 0) {
+                            return LineTooltipItem(
+                              '$xHeader\n$primaryLabel: ${barSpot.y.toStringAsFixed(1)} $primaryUnit',
+                              TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: AppTheme.fs11),
+                            );
+                          } else {
+                            return LineTooltipItem(
+                              '☀️ Irr: ${(barSpot.y / irrScaleFactor).toStringAsFixed(2)} kWh/m²',
+                              const TextStyle(
+                                color: Color(0xFFFFB300),
+                                fontWeight: FontWeight.bold,
+                                fontSize: AppTheme.fs11,
+                              ),
+                            );
+                          }
+                        }).toList();
+                      },
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
 
           const SizedBox(height: 12),
 

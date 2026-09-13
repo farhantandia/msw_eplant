@@ -5,17 +5,18 @@ import 'package:msw_eplant/pages/solarpv/inverter_detail_page.dart';
 import 'package:msw_eplant/pages/solarpv/solar_detail_page.dart';
 import 'package:msw_eplant/services/fusion_solar_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'helpers/test_solar_snapshot.dart';
 
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     FusionSolarService.instance.snapshotNotifier.value =
-        FusionSolarService.generateMockSnapshot();
+        generateTestSolarSnapshot();
   });
 
   group('Solar PV Models & Cluster Architecture Tests', () {
     test('Verifies snapshot generation and inverter clusters', () {
-      final snapshot = FusionSolarService.generateMockSnapshot();
+      final snapshot = generateTestSolarSnapshot();
 
       // Inverter count
       expect(snapshot.totalInverterCount, equals(12));

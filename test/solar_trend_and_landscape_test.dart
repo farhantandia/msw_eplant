@@ -39,18 +39,13 @@ void main() {
       expect(find.text('450.5'), findsOneWidget);
       expect(find.text('kW'), findsWidgets);
 
-      // Verify timeframe tabs
+      // Verify timeframe tabs (Only Today and Yesterday, 7 Days removed)
       expect(find.text('Today'), findsOneWidget);
       expect(find.text('Yesterday'), findsOneWidget);
-      expect(find.text('7 Days'), findsOneWidget);
+      expect(find.text('7 Days'), findsNothing);
 
       // Switch to Yesterday tab
       await tester.tap(find.text('Yesterday'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
-
-      // Switch to 7 Days tab
-      await tester.tap(find.text('7 Days'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
@@ -60,7 +55,7 @@ void main() {
       expect(find.text('PEAK'), findsOneWidget);
 
       // Verify Landscape Fullscreen Action Button
-      expect(find.text('Landscape'), findsOneWidget);
+      expect(find.byIcon(Icons.fullscreen_rounded), findsOneWidget);
     });
 
     testWidgets('Supports inverter-specific telemetry (Inverter Temperature, Voltage, Current)', (tester) async {
@@ -91,7 +86,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.text('Internal Temperature'), findsWidgets);
-      expect(find.text('INV PLTS 165 KWP 1'), findsOneWidget);
+      expect(find.text('INV PLTS 165 kWp 1'), findsOneWidget);
       expect(find.text('°C'), findsWidgets);
     });
 
@@ -175,18 +170,13 @@ void main() {
       // Header title
       expect(find.textContaining('SCADA Telemetry Trend'), findsOneWidget);
 
-      // Timeframe controls
+      // Timeframe controls (Only Today and Yesterday, 7 Days removed)
       expect(find.text('Today'), findsOneWidget);
       expect(find.text('Yesterday'), findsOneWidget);
-      expect(find.text('7 Days'), findsOneWidget);
+      expect(find.text('7 Days'), findsNothing);
 
       // Switch to Yesterday
       await tester.tap(find.text('Yesterday'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
-
-      // Switch to 7 Days
-      await tester.tap(find.text('7 Days'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 

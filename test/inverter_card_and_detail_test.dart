@@ -5,6 +5,7 @@ import 'package:msw_eplant/models/solar_models.dart';
 import 'package:msw_eplant/pages/solarpv/inverter_detail_page.dart';
 import 'package:msw_eplant/pages/plant_page.dart';
 import 'package:msw_eplant/services/fusion_solar_service.dart';
+import 'helpers/test_solar_snapshot.dart';
 
 void main() {
   group('PlantInverterCard Widget Tests', () {
@@ -149,7 +150,6 @@ void main() {
       expect(find.text('TECHNICAL SPECIFICATIONS'), findsOneWidget);
       expect(find.text('468 kWp Array'), findsOneWidget);
       expect(find.text('DIAGNOSTICS & TELEMETRY HEALTH'), findsOneWidget);
-      expect(find.text('ESG CONTRIBUTION (THIS INVERTER)'), findsOneWidget);
       expect(find.text('View Entire Solar PV Plant (1.56 MWp)'), findsNothing);
     });
 
@@ -348,7 +348,7 @@ void main() {
 
       // Ensure FusionSolarService has snapshot
       FusionSolarService.instance.snapshotNotifier.value =
-          FusionSolarService.generateMockSnapshot(date: DateTime(2026, 6, 15, 12, 0));
+          generateTestSolarSnapshot(date: DateTime(2026, 6, 15, 12, 0));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -397,7 +397,7 @@ void main() {
         'PlantPage renders without overflow across multiple screen sizes and text scale factors',
         (WidgetTester tester) async {
       FusionSolarService.instance.snapshotNotifier.value =
-          FusionSolarService.generateMockSnapshot(date: DateTime(2026, 6, 15, 12, 0));
+          generateTestSolarSnapshot(date: DateTime(2026, 6, 15, 12, 0));
 
       for (double width in [320.0, 360.0, 390.0, 412.0]) {
         for (double textScale in [1.0, 1.2, 1.3, 1.5]) {

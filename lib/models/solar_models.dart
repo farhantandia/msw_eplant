@@ -308,6 +308,27 @@ class SolarInverter {
           : const [],
     );
   }
+
+  /// Returns the default inventory of 12 registered inverters in standby mode.
+  /// Used as fallback to ensure inverter list is never empty (e.g. during night standby).
+  static List<SolarInverter> defaultInventory() => const [
+    // 165 kWp Array (4 units @ 41.25 kWp each = 165 kWp, MSW)
+    SolarInverter(id: 'inv_165_1', name: 'INV PLTS 165 kWp 1', clusterId: '165kwp', plantId: 'msw', capacityKwp: 41.25, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    SolarInverter(id: 'inv_165_2', name: 'INV PLTS 165 kWp 2', clusterId: '165kwp', plantId: 'msw', capacityKwp: 41.25, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    SolarInverter(id: 'inv_165_3', name: 'INV PLTS 165 kWp 3', clusterId: '165kwp', plantId: 'msw', capacityKwp: 41.25, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    SolarInverter(id: 'inv_165_4', name: 'INV PLTS 165 kWp 4', clusterId: '165kwp', plantId: 'msw', capacityKwp: 41.25, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    // 200 kWp Array (2 units @ 100 kWp each = 200 kWp, MSW)
+    SolarInverter(id: 'inv_200_1', name: 'INV_PLTS_200_KWP_1', clusterId: '200kwp', plantId: 'msw', capacityKwp: 100.0, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    SolarInverter(id: 'inv_200_2', name: 'INV_PLTS_200_KWP_2', clusterId: '200kwp', plantId: 'msw', capacityKwp: 100.0, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    // 468 kWp Array (4 units @ 117 kWp each = 468 kWp, Kelanis)
+    SolarInverter(id: 'inv_468_1', name: 'Inverter(COM1-1)', clusterId: '468kwp', plantId: 'kelanis', capacityKwp: 117.0, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    SolarInverter(id: 'inv_468_2', name: 'Inverter(COM1-2)', clusterId: '468kwp', plantId: 'kelanis', capacityKwp: 117.0, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    SolarInverter(id: 'inv_468_3', name: 'Inverter(COM1-3)', clusterId: '468kwp', plantId: 'kelanis', capacityKwp: 117.0, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    SolarInverter(id: 'inv_468_4', name: 'Inverter(COM1-5)', clusterId: '468kwp', plantId: 'kelanis', capacityKwp: 117.0, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    // 15 & 20 kWp Array (2 units = 35 kWp, MSW)
+    SolarInverter(id: 'inv_15', name: 'INV PLTS 15 kWp', clusterId: '15_20kwp', plantId: 'msw', capacityKwp: 15.0, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+    SolarInverter(id: 'inv_20', name: 'INV PLTS 20 kWp', clusterId: '15_20kwp', plantId: 'msw', capacityKwp: 20.0, powerKw: 0.0, yieldTodayKwh: 0.0, status: InverterStatus.standby, isNightStandby: true),
+  ];
 }
 
 class SolarHourlyPoint {
@@ -465,13 +486,21 @@ class SolarSnapshot {
     final pPr = plantPr[targetPlantId] ?? performanceRatio;
 
     if (plantInvs.isEmpty) {
+      // Preserve yield and peak proportionally when plant inverters are missing
+      // (e.g. during night standby when inverter list comes from cache without plantId resolution)
+      final ratio = totalCapacityKwp > 0
+          ? (targetCap / totalCapacityKwp)
+          : (targetPlantId == 'kelanis' ? 468.0 / 868.0 : 400.0 / 868.0);
+      final preservedYield = totalYieldTodayKwh > 0 ? double.parse((totalYieldTodayKwh * ratio).toStringAsFixed(1)) : 0.0;
+      final preservedPeak = peakPowerKw > 0 ? double.parse((peakPowerKw * ratio).toStringAsFixed(1)) : 0.0;
+      final preservedYesterday = yieldYesterdayKwh > 0 ? double.parse((yieldYesterdayKwh * ratio).toStringAsFixed(1)) : 0.0;
       return SolarSnapshot(
         timestamp: timestamp,
         isLive: isLive,
         totalPowerKw: 0.0,
-        peakPowerKw: 0.0,
-        totalYieldTodayKwh: 0.0,
-        yieldYesterdayKwh: 0.0,
+        peakPowerKw: preservedPeak,
+        totalYieldTodayKwh: preservedYield,
+        yieldYesterdayKwh: preservedYesterday,
         irradiance: pIrr,
         performanceRatio: pPr,
         gridExportKw: 0.0,
@@ -695,17 +724,8 @@ class SolarSnapshot {
       onlineInverterCount: 0,
       totalInverterCount: 12,
       totalCapacityKwp: 868.0,
-      inverters: const [],
-      hourlyPoints: [
-        for (int h = 4; h <= now.hour && h <= 20; h++)
-          SolarHourlyPoint(
-            hour: h,
-            timeStr: '${h.toString().padLeft(2, '0')}:00',
-            powerKw: 0.0,
-            irradiance: 0.0,
-            pr: 0.0,
-          ),
-      ],
+      inverters: SolarInverter.defaultInventory(),
+      hourlyPoints: const [],
     );
   }
 }

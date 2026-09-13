@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:msw_eplant/models/solar_models.dart';
 import 'package:msw_eplant/services/fusion_solar_api_client.dart';
 import 'package:msw_eplant/services/fusion_solar_service.dart';
+import 'helpers/test_solar_snapshot.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -155,9 +156,9 @@ void main() {
   });
 
   group('12 Inverters across 4 Clusters & Hourly Clamping (Up to Current Hour)', () {
-    test('generateMockSnapshot produces hourly points strictly up to current hour (no future points)', () {
+    test('generateTestSolarSnapshot produces hourly points strictly up to current hour (no future points)', () {
       // At 12:00 -> 04:00 to 12:00 inclusive = 9 points
-      final snapNoon = FusionSolarService.generateMockSnapshot(
+      final snapNoon = generateTestSolarSnapshot(
         date: DateTime(2026, 6, 15, 12, 0),
       );
       expect(snapNoon.hourlyPoints.length, equals(9));
@@ -167,7 +168,7 @@ void main() {
       expect(snapNoon.hourlyPoints.last.timeStr, equals('12:00'));
 
       // At 20:00 -> 04:00 to 20:00 inclusive = 17 points
-      final snapEvening = FusionSolarService.generateMockSnapshot(
+      final snapEvening = generateTestSolarSnapshot(
         date: DateTime(2026, 6, 15, 20, 0),
       );
       expect(snapEvening.hourlyPoints.length, equals(17));
@@ -176,7 +177,7 @@ void main() {
     });
 
     test('All 12 inverters are mapped across 4 arrays with correct capacities summing to 868 kWp', () {
-      final snap = FusionSolarService.generateMockSnapshot(
+      final snap = generateTestSolarSnapshot(
         date: DateTime(2026, 6, 15, 12, 0),
       );
 
@@ -208,7 +209,7 @@ void main() {
     });
 
     test('Plant separation isolates MSW (400 kWp, 8 inverters) and Kelanis (468 kWp, 4 inverters)', () {
-      final snap = FusionSolarService.generateMockSnapshot(
+      final snap = generateTestSolarSnapshot(
         date: DateTime(2026, 6, 15, 12, 0),
       );
 
@@ -233,39 +234,59 @@ void main() {
     });
   });
 
-  group('Firebase 7-Day Historical Time Series & Retention Tests', () {
-    test('Date key and hour key formatting matches Firebase schema', () {
-      final dt = DateTime(2026, 9, 6, 14, 30);
-      expect(FusionSolarService.formatHistoryDateKey(dt), equals('2026-09-06'));
-      expect(FusionSolarService.formatHistoryHourKey(dt), equals('14'));
-    });
-
-    test('getHistoryCutoffDate accurately calculates 7-day retention cutoff', () {
-      final now = DateTime(2026, 9, 6);
-      final cutoff = FusionSolarService.getHistoryCutoffDate(now);
-      final diffDays = now.difference(cutoff).inDays;
-      expect(diffDays, equals(7));
-    });
-
-    test('generate7DayHistoricalData produces exactly 7 days of historical records with plant breakdown and 12 inverters', () {
-      final history = FusionSolarService.generate7DayHistoricalData();
-      expect(history.keys.length, equals(7));
-      for (final dayEntry in history.values) {
-        expect(dayEntry.isNotEmpty, isTrue);
-        final firstHour = dayEntry.values.first as Map;
-        expect(firstHour['total_yield_kwh'], isNotNull);
-        expect(firstHour['total_power_kw'], isNotNull);
-        expect(firstHour['pr'], isNotNull);
-        expect(firstHour['plants'], isA<Map>());
-        expect(firstHour['plants']['msw'], isNotNull);
-        expect(firstHour['plants']['kelanis'], isNotNull);
-        expect(firstHour['inverters'], isA<List>());
-        expect((firstHour['inverters'] as List).length, equals(12));
+  group('Night Standby Bug Fix & Default Inventory Tests', () {
+    test('SolarInverter.defaultInventory produces exactly 12 inverters in standby status', () {
+      final inventory = SolarInverter.defaultInventory();
+      expect(inventory.length, equals(12));
+      for (final inv in inventory) {
+        expect(inv.powerKw, equals(0.0));
+        expect(inv.yieldTodayKwh, equals(0.0));
+        expect(inv.status, equals(InverterStatus.standby));
+        expect(inv.isNightStandby, isTrue);
       }
+      expect(inventory.where((i) => i.plantId == 'msw').length, equals(8));
+      expect(inventory.where((i) => i.plantId == 'kelanis').length, equals(4));
+    });
+
+    test('SolarSnapshot.emptyOrStandby has 12 standby inverters and 0 online count', () {
+      final standby = SolarSnapshot.emptyOrStandby();
+      expect(standby.totalInverterCount, equals(12));
+      expect(standby.inverters.length, equals(12));
+      expect(standby.onlineInverterCount, equals(0));
+      expect(standby.totalCapacityKwp, equals(868.0));
+    });
+
+    test('SolarSnapshot.forPlant preserves yield and peak power when inverters list is empty', () {
+      final snap = SolarSnapshot(
+        timestamp: DateTime.now(),
+        isLive: true,
+        totalPowerKw: 0.0,
+        peakPowerKw: 550.0,
+        totalYieldTodayKwh: 3200.0,
+        yieldYesterdayKwh: 3100.0,
+        irradiance: 0.0,
+        performanceRatio: 82.0,
+        onlineInverterCount: 0,
+        totalInverterCount: 12,
+        totalCapacityKwp: 868.0,
+        gridExportKw: 0.0,
+        hourlyPoints: const [],
+        inverters: const [], // empty inverters
+      );
+
+      final msw = snap.forPlant('msw');
+      expect(msw.totalYieldTodayKwh, greaterThan(0.0));
+      expect(msw.peakPowerKw, greaterThan(0.0));
+      expect(msw.totalCapacityKwp, equals(400.0));
+
+      final kelanis = snap.forPlant('kelanis');
+      expect(kelanis.totalYieldTodayKwh, greaterThan(0.0));
+      expect(kelanis.peakPowerKw, greaterThan(0.0));
+      expect(kelanis.totalCapacityKwp, equals(468.0));
     });
 
     test('SolarSnapshot serialization preserves full time series and inverter data', () {
-      final snap = FusionSolarService.generateMockSnapshot(
+      final snap = generateTestSolarSnapshot(
         date: DateTime(2026, 6, 15, 12, 0),
       );
 
@@ -285,7 +306,7 @@ void main() {
 
   group('WhatsApp Report Tests', () {
     test('formatWhatsAppReport formats isolated reports for MSW, Kelanis, and Combined', () {
-      final snap = FusionSolarService.generateMockSnapshot(
+      final snap = generateTestSolarSnapshot(
         date: DateTime(2026, 6, 15, 12, 0),
       );
 
@@ -541,7 +562,7 @@ void main() {
 
     test('checkAndTriggerPeriodicSync reuses same 30-minute cached snapshot without triggering sync', () async {
       final service = FusionSolarService.instance;
-      final snap1500 = FusionSolarService.generateMockSnapshot(
+      final snap1500 = generateTestSolarSnapshot(
         date: DateTime(2026, 6, 15, 15, 0),
       );
       service.snapshotNotifier.value = snap1500;
@@ -561,7 +582,7 @@ void main() {
 
   group('Distinct Plant Irradiance/PR & Morning Anti-Zero Yield Tests', () {
     test('MSW and Kelanis have strictly distinct irradiance, PR, and hourly curves in forPlant()', () {
-      final snap = FusionSolarService.generateMockSnapshot(
+      final snap = generateTestSolarSnapshot(
         date: DateTime(2026, 6, 15, 12, 0),
       );
 

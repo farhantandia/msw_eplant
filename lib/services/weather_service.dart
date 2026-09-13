@@ -48,19 +48,6 @@ enum WeatherLocation {
   });
 }
 
-/// Status evaluasi risiko operasional plant
-enum PlantRiskLevel {
-  safe('AMAN', Color(0xFF00E5A0), Icons.check_circle_outline),
-  caution('WASPADA', Color(0xFFFFB020), Icons.warning_amber_rounded),
-  warning('BAHAYA / RISIKO TINGGI', Color(0xFFFF4D6A), Icons.error_outline_rounded);
-
-  final String label;
-  final Color color;
-  final IconData icon;
-
-  const PlantRiskLevel(this.label, this.color, this.icon);
-}
-
 class WeatherService {
   static String get _apiKey => EnvConfig.openWeatherApiKey;
   static String get _baseUrl => EnvConfig.openWeatherBaseUrl;
@@ -232,85 +219,5 @@ class WeatherService {
     final peakUv = sin(normTime * pi).clamp(0.0, 1.0) * 11.5;
     final uv = peakUv * (1.0 - (cloudPct / 100.0) * 0.5);
     return double.parse(uv.toStringAsFixed(1));
-  }
-
-  /// Evaluates operational wind risk for barges and jetty at Kelanis Port
-  static Map<String, dynamic> calculateJettyWindRisk({
-    required double windSpeedMs,
-    double? gustMs,
-  }) {
-    final effectiveWind = max(windSpeedMs, (gustMs ?? 0.0) * 0.85);
-
-    if (effectiveWind < 6.5) {
-      return {
-        'level': PlantRiskLevel.safe,
-        'title': 'Safe Berthing Operations',
-        'detail': 'Low wind speed (${windSpeedMs.toStringAsFixed(1)} m/s), safe for 300ft barges.',
-      };
-    } else if (effectiveWind <= 11.0) {
-      return {
-        'level': PlantRiskLevel.caution,
-        'title': 'Caution: Wind & Currents',
-        'detail': 'Gusts reaching ${(gustMs ?? windSpeedMs).toStringAsFixed(1)} m/s. Ensure double mooring lines.',
-      };
-    } else {
-      return {
-        'level': PlantRiskLevel.warning,
-        'title': 'High Wind Warning',
-        'detail': 'Wind > 11 m/s. Postponing barge berthing/unmooring recommended for jetty safety.',
-      };
-    }
-  }
-
-  /// Evaluates moisture risk on coal stockpile
-  static Map<String, dynamic> calculateStockpileMoistureRisk({
-    required int humidityPct,
-    required double rainMm,
-  }) {
-    if (rainMm >= 5.0) {
-      return {
-        'level': PlantRiskLevel.warning,
-        'title': 'High Precipitation',
-        'detail': 'Heavy rain (${rainMm.toStringAsFixed(1)} mm). Significant risk of coal Total Moisture (TM) increase.',
-      };
-    } else if (rainMm > 0.0 || humidityPct >= 85) {
-      return {
-        'level': PlantRiskLevel.caution,
-        'title': 'High Humidity',
-        'detail': 'RH $humidityPct% with drizzle. Monitor potential wet coal clogging on chute feeder.',
-      };
-    } else {
-      return {
-        'level': PlantRiskLevel.safe,
-        'title': 'Dry Coal Condition',
-        'detail': 'No rain (RH $humidityPct%). Optimal coal transfer flow.',
-      };
-    }
-  }
-
-  /// Evaluates thermal derating risk on PLTS solar inverter shelter
-  static Map<String, dynamic> calculateThermalDeratingRisk({
-    required double tempC,
-    required int humidityPct,
-  }) {
-    if (tempC >= 36.0) {
-      return {
-        'level': PlantRiskLevel.warning,
-        'title': 'Extreme Temperature (> 36°C)',
-        'detail': 'Risk of inverter internal power derating. Ensure shelter exhaust fan is fully running.',
-      };
-    } else if (tempC >= 32.5) {
-      return {
-        'level': PlantRiskLevel.caution,
-        'title': 'Elevated Temperature (32 - 36°C)',
-        'detail': 'Inverter operating at elevated temperature. Monitor IGBT temperature via Inverter Detail page.',
-      };
-    } else {
-      return {
-        'level': PlantRiskLevel.safe,
-        'title': 'Optimal Ambient Temperature',
-        'detail': 'Air temperature ${tempC.toStringAsFixed(1)}°C is safe for natural convection cooling of inverters.',
-      };
-    }
   }
 }

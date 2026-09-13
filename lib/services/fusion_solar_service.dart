@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +8,9 @@ import 'package:msw_eplant/services/fusion_solar_api_client.dart';
 
 class FusionSolarService {
   static const String _prefLastSyncKey = 'solar_pv_last_sync_ms';
+  static const String _prefValidSnapshotKey = 'solar_pv_last_valid_snapshot';
+  static const String _prefYesterdayHourlyKey = 'solar_pv_yesterday_hourly';
+  static const String _prefYesterdayDateKey = 'solar_pv_yesterday_date';
   static final FusionSolarService instance = FusionSolarService._internal();
 
   FusionSolarService._internal();
@@ -15,7 +18,6 @@ class FusionSolarService {
   static bool enableAutoSync = true;
 
   DatabaseReference? _solarLatestRef;
-  DatabaseReference? _solarHistoryRef;
   StreamSubscription<DatabaseEvent>? _solarStreamSub;
   Timer? _periodicTimer;
 
@@ -35,23 +37,36 @@ class FusionSolarService {
     SolarSnapshot.emptyOrStandby(),
   );
 
-  /// Initializes listeners to Firebase RTDB `/solar_pv/latest` and seeds if empty
+  /// Cached yesterday hourly points, loaded from SharedPreferences on startup.
+  List<SolarHourlyPoint>? _cachedYesterdayHourly;
+
+  /// Returns yesterday's hourly data points from cache.
+  /// Returns null if data has not been fetched/cached yet.
+  List<SolarHourlyPoint>? get yesterdayHourlyPoints => _cachedYesterdayHourly;
+
+  /// Initializes listeners to Firebase RTDB `/solar_pv/latest`, restores local cache,
+  /// fetches yesterday data, and starts auto-sync.
   void init({bool? autoSync}) {
+    // 1. Immediately restore last valid snapshot from local SharedPreferences cache
+    // This ensures data is available instantly (before async RTDB / API calls complete)
+    _restoreSnapshotFromLocalCache();
+
     try {
       final rtdb = FirebaseDatabase.instance;
       _solarLatestRef = rtdb.ref('solar_pv/latest');
-      _solarHistoryRef = rtdb.ref('solar_pv/history');
 
       // Attempt immediate cache restoration from Firebase RTDB
       _solarLatestRef?.once().then((event) {
         if (event.snapshot.value is Map) {
           try {
             final snap = SolarSnapshot.fromJson(event.snapshot.value as Map);
-            snapshotNotifier.value = snap;
-            debugPrint('✅ Restored actual solar snapshot from Firebase cache');
+            // Only accept RTDB data if it has valid inverters (not stale empty data)
+            if (snap.inverters.isNotEmpty) {
+              snapshotNotifier.value = snap;
+              debugPrint('✅ Restored actual solar snapshot from Firebase cache');
+            }
           } catch (_) {}
         }
-        // If node doesn't exist, keep the empty/standby snapshot — never seed mock data
       }).catchError((_) {});
 
       // Listen to solar_pv path
@@ -67,6 +82,9 @@ class FusionSolarService {
       debugPrint('Firebase RTDB not initialized in this environment: $e');
     }
 
+    // 2. Load yesterday's hourly data from cache
+    _loadYesterdayCacheFromPrefs();
+
     // Clock-Aligned Auto-Sync: Precisely at :00 and :30 wall-clock marks (e.g. 09:00, 09:30, 10:00, 10:30...)
     // during operating window (04:00 - 20:00).
     // Only schedule timer if not in automated widget test environment to avoid pending timer assertions
@@ -80,6 +98,134 @@ class FusionSolarService {
       checkAndTriggerPeriodicSync();
     }
   }
+
+  /// Restores the last valid snapshot from SharedPreferences (synchronous-like via async init).
+  void _restoreSnapshotFromLocalCache() {
+    SharedPreferences.getInstance().then((prefs) {
+      final raw = prefs.getString(_prefValidSnapshotKey);
+      if (raw != null && raw.isNotEmpty) {
+        try {
+          final jsonMap = json.decode(raw) as Map;
+          final cached = SolarSnapshot.fromJson(jsonMap);
+          // Only restore if it has meaningful data
+          if (cached.inverters.isNotEmpty || cached.totalYieldTodayKwh > 0) {
+            snapshotNotifier.value = cached;
+            debugPrint('✅ Restored solar snapshot from local SharedPreferences cache');
+          }
+        } catch (e) {
+          debugPrint('Failed to restore local snapshot cache: $e');
+        }
+      }
+    }).catchError((_) {});
+  }
+
+  /// Loads yesterday's hourly data from SharedPreferences cache.
+  void _loadYesterdayCacheFromPrefs() {
+    SharedPreferences.getInstance().then((prefs) {
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      final expectedDateKey = _formatDateKey(yesterday);
+      final cachedDate = prefs.getString(_prefYesterdayDateKey);
+
+      if (cachedDate == expectedDateKey) {
+        final raw = prefs.getString(_prefYesterdayHourlyKey);
+        if (raw != null && raw.isNotEmpty) {
+          try {
+            final list = json.decode(raw) as List;
+            _cachedYesterdayHourly = list
+                .whereType<Map>()
+                .map((m) => SolarHourlyPoint.fromJson(m))
+                .toList();
+            debugPrint('✅ Loaded ${_cachedYesterdayHourly!.length} yesterday hourly points from cache');
+          } catch (e) {
+            debugPrint('Failed to parse yesterday hourly cache: $e');
+          }
+        }
+      } else {
+        // Cache is stale or missing — fetch from API (skip in automated widget tests)
+        final isWidgetTest = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+        if (!isWidgetTest) {
+          _fetchYesterdayFromApi();
+        }
+      }
+    }).catchError((_) {});
+  }
+
+  /// Fetches yesterday's hourly KPI data directly from Huawei FusionSolar OpenAPI
+  /// and caches it to SharedPreferences.
+  Future<void> _fetchYesterdayFromApi() async {
+    final isWidgetTest = WidgetsBinding.instance.runtimeType.toString().contains('Test');
+    if (isWidgetTest) return;
+
+    try {
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      final dateKey = _formatDateKey(yesterday);
+
+      // Get station codes from the API client (same as used in fetchLatestSnapshot)
+      final stations = await apiClient.getStationList();
+      if (stations.isEmpty) return;
+
+      final allSc = stations
+          .map((s) => s['stationCode']?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .join(',');
+
+      if (allSc.isEmpty) return;
+
+      final hourlyKpis = await apiClient.getKpiStationHour(allSc, yesterday);
+      if (hourlyKpis.isEmpty) return;
+
+      final points = <SolarHourlyPoint>[];
+      final sortedHours = hourlyKpis.keys.toList()..sort();
+      for (final h in sortedHours) {
+        if (h < 4 || h > 20) continue;
+        final hData = hourlyKpis[h]!;
+        final hIrr = (hData['radiation_intensity'] as num?)?.toDouble() ?? 0.0;
+        final hPower = (hData['inverter_power'] as num?)?.toDouble() ?? 0.0;
+        final hPr = (hData['performance_ratio'] as num?)?.toDouble() ?? 0.0;
+
+        points.add(SolarHourlyPoint(
+          hour: h,
+          timeStr: '${h.toString().padLeft(2, '0')}:00',
+          powerKw: double.parse(hPower.toStringAsFixed(1)),
+          irradiance: double.parse(hIrr.toStringAsFixed(2)),
+          pr: double.parse(hPr.toStringAsFixed(1)),
+          plantData: {
+            'msw': {
+              'irradiance': (hData['irr_msw'] as num?)?.toDouble() ?? 0.0,
+              'power': (hData['power_msw'] as num?)?.toDouble() ?? 0.0,
+              'pr': (hData['pr_msw'] as num?)?.toDouble() ?? 0.0,
+            },
+            'kelanis': {
+              'irradiance': (hData['irr_kelanis'] as num?)?.toDouble() ?? 0.0,
+              'power': (hData['power_kelanis'] as num?)?.toDouble() ?? 0.0,
+              'pr': (hData['pr_kelanis'] as num?)?.toDouble() ?? 0.0,
+            },
+          },
+        ));
+      }
+
+      if (points.isNotEmpty) {
+        _cachedYesterdayHourly = points;
+
+        // Persist to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_prefYesterdayDateKey, dateKey);
+        await prefs.setString(
+          _prefYesterdayHourlyKey,
+          json.encode(points.map((p) => p.toJson()).toList()),
+        );
+        debugPrint('✅ Fetched & cached ${points.length} yesterday hourly points from OpenAPI');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to fetch yesterday hourly data: $e');
+    }
+  }
+
+  /// Ensures yesterday data is available. Called on startup.
+  Future<void> ensureYesterdayData() => _fetchYesterdayFromApi();
+
+  static String _formatDateKey(DateTime dt) =>
+      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
   /// Computes the exact Duration until the next :00 or :30 mark on the wall-clock.
   static Duration getDurationUntilNextHalfHour([DateTime? from]) {
@@ -112,7 +258,9 @@ class FusionSolarService {
     if (event.snapshot.value != null && event.snapshot.value is Map) {
       try {
         final snap = SolarSnapshot.fromJson(event.snapshot.value as Map);
-        snapshotNotifier.value = snap;
+        if (snap.inverters.isNotEmpty) {
+          snapshotNotifier.value = snap;
+        }
       } catch (e) {
         debugPrint('Error parsing Firebase solar snapshot: $e');
       }
@@ -164,10 +312,9 @@ class FusionSolarService {
   /// 2. Enforces hourly bucket cache policy: if already synced for the current hour, skips external API call and reuses stored snapshot.
   /// 3. Enforces 16-hour operating window (04:00 - 20:00 WITA). Night hours (20:00 - 04:00) enter Standby with 0 API calls.
   /// 4. Attempts FusionSolar OpenAPI fetch with max 5 retries / 1 min.
-  /// 5. In night hours, puts inverters into Night Standby with 0.0 kW without calling API.
-  /// 6. Pushes live snapshot to Firebase RTDB and appends to 30-day historical time-series.
-  /// 7. Automatically prunes history older than 30 days.
-  /// 8. Never falls back to mock data during daytime – always retains last known actual snapshot.
+  /// 5. In night hours, preserves today's yield, peak, hourly profile and inverter data — only zeroes active power.
+  /// 6. Pushes live snapshot to Firebase RTDB `/solar_pv/latest`.
+  /// 7. Never falls back to mock data during daytime – always retains last known actual snapshot.
   Future<SolarSnapshot> syncNow({bool forceRefresh = false}) async {
     // ── Mutex lock: prevent concurrent overlapping syncs ──
     if (_isSyncing) {
@@ -225,55 +372,122 @@ class FusionSolarService {
       // 20:00 - 04:00: Outside 16h operating window -> Night Standby, 0 API calls
       debugPrint('🌙 Outside 16h operational window (20:00 - 04:00). Standby mode active.');
       final current = snapshotNotifier.value;
-      // Preserve current day's actual yield and actual inverters, but set active power to 0.0 kW
-      final standbyInverters = current.inverters.map((inv) {
-        return SolarInverter(
-          id: inv.id,
-          name: inv.name,
-          clusterId: inv.clusterId,
-          capacityKwp: inv.capacityKwp,
-          powerKw: 0.0,
-          yieldTodayKwh: inv.yieldTodayKwh,
-          specificEnergy: inv.specificEnergy,
-          status: InverterStatus.standby,
-          isNightStandby: true,
-          model: inv.model,
-          softwareVersion: inv.softwareVersion,
-          esnCode: inv.esnCode,
-          temperature: inv.temperature,
-          gridFrequency: inv.gridFrequency,
-          lineVoltageAb: inv.lineVoltageAb,
-          lineVoltageBc: inv.lineVoltageBc,
-          lineVoltageCa: inv.lineVoltageCa,
-          phaseCurrentA: 0.0,
-          phaseCurrentB: 0.0,
-          phaseCurrentC: 0.0,
-          powerFactor: inv.powerFactor,
-          efficiency: 0.0,
-          mpptPowerKw: 0.0,
-          totalLifetimeKwh: inv.totalLifetimeKwh,
-          inverterState: 0,
-        );
-      }).toList();
 
-      snapshot = SolarSnapshot(
-        timestamp: FusionSolarApiClient.roundToNearestHalfHour(now),
-        isLive: false,
-        totalPowerKw: 0.0,
-        peakPowerKw: current.peakPowerKw,
-        totalYieldTodayKwh: current.totalYieldTodayKwh,
-        yieldYesterdayKwh: current.yieldYesterdayKwh,
-        irradiance: 0.0,
-        performanceRatio: current.performanceRatio,
-        plantIrradiance: current.plantIrradiance,
-        plantPr: current.plantPr,
-        gridExportKw: 0.0,
-        onlineInverterCount: 0,
-        totalInverterCount: standbyInverters.isNotEmpty ? standbyInverters.length : 12,
-        totalCapacityKwp: current.totalCapacityKwp,
-        inverters: standbyInverters.isNotEmpty ? standbyInverters : current.inverters,
-        hourlyPoints: current.hourlyPoints,
-      );
+      // Determine if we're still on the same calendar day as the last valid snapshot
+      final isSameDay = current.timestamp.year == now.year &&
+          current.timestamp.month == now.month &&
+          current.timestamp.day == now.day;
+
+      // Get valid inverters: use current if available, otherwise fallback to default inventory
+      final baseInverters = current.inverters.isNotEmpty
+          ? current.inverters
+          : SolarInverter.defaultInventory();
+
+      if (isSameDay) {
+        // ── Same day (20:00 - 23:59): Preserve all daytime data ──
+        // Keep yield, peak, PR, hourlyPoints. Only zero active power.
+        final standbyInverters = baseInverters.map((inv) {
+          return SolarInverter(
+            id: inv.id,
+            name: inv.name,
+            clusterId: inv.clusterId,
+            plantId: inv.plantId,
+            capacityKwp: inv.capacityKwp,
+            powerKw: 0.0,
+            yieldTodayKwh: inv.yieldTodayKwh, // Preserve today's yield
+            specificEnergy: inv.specificEnergy,
+            status: InverterStatus.standby,
+            isNightStandby: true,
+            model: inv.model,
+            softwareVersion: inv.softwareVersion,
+            esnCode: inv.esnCode,
+            temperature: inv.temperature,
+            gridFrequency: inv.gridFrequency,
+            lineVoltageAb: inv.lineVoltageAb,
+            lineVoltageBc: inv.lineVoltageBc,
+            lineVoltageCa: inv.lineVoltageCa,
+            phaseCurrentA: 0.0,
+            phaseCurrentB: 0.0,
+            phaseCurrentC: 0.0,
+            powerFactor: inv.powerFactor,
+            efficiency: 0.0,
+            mpptPowerKw: 0.0,
+            totalLifetimeKwh: inv.totalLifetimeKwh,
+            inverterState: 0,
+          );
+        }).toList();
+
+        snapshot = SolarSnapshot(
+          timestamp: FusionSolarApiClient.roundToNearestHalfHour(now),
+          isLive: false,
+          totalPowerKw: 0.0,
+          peakPowerKw: current.peakPowerKw, // Preserve
+          totalYieldTodayKwh: current.totalYieldTodayKwh, // Preserve
+          yieldYesterdayKwh: current.yieldYesterdayKwh, // Preserve
+          irradiance: 0.0,
+          performanceRatio: current.performanceRatio, // Preserve
+          plantIrradiance: current.plantIrradiance, // Preserve
+          plantPr: current.plantPr, // Preserve
+          gridExportKw: 0.0,
+          onlineInverterCount: 0,
+          totalInverterCount: standbyInverters.length,
+          totalCapacityKwp: current.totalCapacityKwp > 0 ? current.totalCapacityKwp : 868.0,
+          inverters: standbyInverters,
+          hourlyPoints: current.hourlyPoints, // Preserve today's trend
+        );
+      } else {
+        // ── New day (00:00 - 03:59): Reset for new day ──
+        // Move today's yield to yesterday, start fresh
+        final standbyInverters = baseInverters.map((inv) {
+          return SolarInverter(
+            id: inv.id,
+            name: inv.name,
+            clusterId: inv.clusterId,
+            plantId: inv.plantId,
+            capacityKwp: inv.capacityKwp,
+            powerKw: 0.0,
+            yieldTodayKwh: 0.0, // Reset for new day
+            specificEnergy: inv.specificEnergy,
+            status: InverterStatus.standby,
+            isNightStandby: true,
+            model: inv.model,
+            softwareVersion: inv.softwareVersion,
+            esnCode: inv.esnCode,
+            temperature: inv.temperature,
+            gridFrequency: inv.gridFrequency,
+            lineVoltageAb: inv.lineVoltageAb,
+            lineVoltageBc: inv.lineVoltageBc,
+            lineVoltageCa: inv.lineVoltageCa,
+            phaseCurrentA: 0.0,
+            phaseCurrentB: 0.0,
+            phaseCurrentC: 0.0,
+            powerFactor: inv.powerFactor,
+            efficiency: 0.0,
+            mpptPowerKw: 0.0,
+            totalLifetimeKwh: inv.totalLifetimeKwh,
+            inverterState: 0,
+          );
+        }).toList();
+
+        snapshot = SolarSnapshot(
+          timestamp: FusionSolarApiClient.roundToNearestHalfHour(now),
+          isLive: false,
+          totalPowerKw: 0.0,
+          peakPowerKw: 0.0,
+          totalYieldTodayKwh: 0.0,
+          yieldYesterdayKwh: current.totalYieldTodayKwh, // Yesterday's yield
+          irradiance: 0.0,
+          performanceRatio: 0.0,
+          plantIrradiance: const {},
+          plantPr: const {},
+          gridExportKw: 0.0,
+          onlineInverterCount: 0,
+          totalInverterCount: standbyInverters.length,
+          totalCapacityKwp: current.totalCapacityKwp > 0 ? current.totalCapacityKwp : 868.0,
+          inverters: standbyInverters,
+          hourlyPoints: const [], // New day, no hourly data yet
+        );
+      }
     } else {
       // 04:00 - 20:00: Attempt live fetch from Huawei FusionSolar OpenAPI
       SolarSnapshot? liveSnap;
@@ -287,7 +501,7 @@ class FusionSolarService {
         snapshot = liveSnap;
       } else {
         // API down or rate limited: ALWAYS retain last known actual snapshot.
-        // Never fall back to generateMockSnapshot() during daytime –
+        // Never fall back to mock data during daytime –
         // mock data overwrites real values and confuses operators.
         debugPrint('ℹ️ API unavailable. Retaining last known actual solar snapshot.');
         snapshot = snapshotNotifier.value;
@@ -300,90 +514,48 @@ class FusionSolarService {
       await prefs.setInt(_prefLastSyncKey, now.millisecondsSinceEpoch);
     } catch (_) {}
 
-    // Push to Firebase RTDB and store 30-day historical time series
+    // Push to Firebase RTDB (latest only, no history node)
     await _pushToFirebase(snapshot, now);
+
+    // Save valid daytime snapshot to local cache
+    if (snapshot.inverters.isNotEmpty) {
+      _saveSnapshotToLocalCache(snapshot);
+    }
 
     snapshotNotifier.value = snapshot;
     return snapshot;
   }
 
-  /// Formats date to YYYY-MM-DD for Firebase RTDB historical time-series
-  static String formatHistoryDateKey(DateTime dt) =>
-      '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  /// Saves a valid snapshot to SharedPreferences for instant restoration on next app launch.
+  void _saveSnapshotToLocalCache(SolarSnapshot snapshot) {
+    SharedPreferences.getInstance().then((prefs) {
+      try {
+        prefs.setString(_prefValidSnapshotKey, json.encode(snapshot.toJson()));
+      } catch (_) {}
+    }).catchError((_) {});
+  }
 
-  /// Formats hour to HH (00..23)
-  static String formatHistoryHourKey(DateTime dt) =>
-      dt.hour.toString().padLeft(2, '0');
-
-  /// Computes the 7-day retention cutoff date (Rolling 7-day window)
-  static DateTime getHistoryCutoffDate(DateTime now) =>
-      now.subtract(const Duration(days: 7));
-
-  /// Persists snapshot and 7-day rolling time-series to Firebase RTDB with automatic pruning
+  /// Pushes latest snapshot to Firebase RTDB `/solar_pv/latest`.
+  /// Includes guard: never overwrite with empty/zero data when valid data exists.
   Future<void> _pushToFirebase(SolarSnapshot snapshot, DateTime now) async {
     try {
-      final dateKey = formatHistoryDateKey(now);
-      final hourKey = formatHistoryHourKey(now);
+      // Guard: don't push if inverters are empty (corrupted/initial state)
+      if (snapshot.inverters.isEmpty) {
+        debugPrint('⚠️ Skipping RTDB push: snapshot has no inverters');
+        return;
+      }
 
-      final snapMsw = snapshot.forPlant('msw');
-      final snapKelanis = snapshot.forPlant('kelanis');
+      // Guard: don't overwrite valid RTDB data with zero yield at night
+      // (when we know daytime data was previously stored)
+      if (snapshot.totalYieldTodayKwh <= 0.0 && !FusionSolarApiClient.isWithinOperatingHours(now)) {
+        final current = snapshotNotifier.value;
+        if (current.totalYieldTodayKwh > 0.0) {
+          debugPrint('⚠️ Skipping RTDB push: would overwrite valid yield with 0 at night');
+          return;
+        }
+      }
 
-      final historyRecord = {
-        'timestamp': now.toIso8601String(),
-        'hour': now.hour,
-        'total_power_kw': snapshot.totalPowerKw,
-        'total_yield_kwh': snapshot.effectiveYieldTodayKwh,
-        'peak_power_kw': snapshot.peakPowerKw,
-        'irradiance': snapshot.irradiance,
-        'pr': snapshot.performanceRatio,
-        'grid_export_kw': snapshot.gridExportKw,
-        'online_inverters': snapshot.onlineInverterCount,
-        'total_inverters': snapshot.totalInverterCount,
-        'plants': {
-          'msw': {
-            'power_kw': snapMsw.totalPowerKw,
-            'yield_kwh': snapMsw.effectiveYieldTodayKwh,
-            'irradiance': snapMsw.irradiance,
-            'pr': snapMsw.performanceRatio,
-            'peak_power_kw': snapMsw.peakPowerKw,
-            'online_inverters': snapMsw.onlineInverterCount,
-            'total_inverters': snapMsw.totalInverterCount,
-          },
-          'kelanis': {
-            'power_kw': snapKelanis.totalPowerKw,
-            'yield_kwh': snapKelanis.effectiveYieldTodayKwh,
-            'irradiance': snapKelanis.irradiance,
-            'pr': snapKelanis.performanceRatio,
-            'peak_power_kw': snapKelanis.peakPowerKw,
-            'online_inverters': snapKelanis.onlineInverterCount,
-            'total_inverters': snapKelanis.totalInverterCount,
-          },
-        },
-        'inverters': snapshot.inverters.map((inv) => {
-          'id': inv.id,
-          'name': inv.name,
-          'cluster_id': inv.clusterId,
-          'plant_id': inv.plantId,
-          'power_kw': inv.powerKw,
-          'yield_today_kwh': inv.yieldTodayKwh,
-          'specific_energy': inv.specificEnergy ?? (inv.capacityKwp > 0 ? (inv.yieldTodayKwh / inv.capacityKwp) : 0.0),
-          'temperature': inv.temperature,
-          'efficiency': inv.efficiency,
-          'grid_frequency': inv.gridFrequency,
-          'line_voltage_ab': inv.lineVoltageAb,
-          'line_voltage_bc': inv.lineVoltageBc,
-          'line_voltage_ca': inv.lineVoltageCa,
-          'phase_current_a': inv.phaseCurrentA,
-          'phase_current_b': inv.phaseCurrentB,
-          'phase_current_c': inv.phaseCurrentC,
-          'power_factor': inv.powerFactor,
-          'mppt_power_kw': inv.mpptPowerKw,
-          'status': inv.status.name,
-          'is_night_standby': inv.isNightStandby,
-        }).toList(),
-      };
-
-      // 1. Write latest snapshot to solar_pv/latest
+      // Write latest snapshot to solar_pv/latest
       if (_solarLatestRef != null) {
         try {
           await _solarLatestRef!.set(snapshot.toJson());
@@ -391,464 +563,9 @@ class FusionSolarService {
           debugPrint('Firebase solarLatestRef push error: $e');
         }
       }
-
-      // 2. Append hourly point to 7-day time-series history
-      if (_solarHistoryRef != null) {
-        try {
-          await _solarHistoryRef!.child('$dateKey/$hourKey').set(historyRecord);
-        } catch (e) {
-          debugPrint('Firebase solarHistoryRef push error: $e');
-        }
-      }
-
-      // 3. Prune historical data older than 7 days
-      _pruneOldHistory(now);
     } catch (e) {
       debugPrint('Firebase push error: $e');
     }
-  }
-
-  /// Automatically deletes historical date nodes older than 7 days
-  void _pruneOldHistory(DateTime now) {
-    try {
-      final cutoffDate = getHistoryCutoffDate(now);
-      final cutoffKey = formatHistoryDateKey(cutoffDate);
-
-      void cleanRef(DatabaseReference? ref) {
-        if (ref == null) return;
-        ref.orderByKey().endAt(cutoffKey).once().then((event) {
-          if (event.snapshot.value is Map) {
-            final map = event.snapshot.value as Map;
-            for (final key in map.keys) {
-              if (key.toString().compareTo(cutoffKey) < 0) {
-                ref.child(key.toString()).remove().catchError((_) {});
-                debugPrint('🧹 Pruned old solar history record: $key');
-              }
-            }
-          }
-        }).catchError((_) {});
-      }
-
-      cleanRef(_solarHistoryRef);
-    } catch (_) {}
-  }
-
-  /// Seeds initial structured solar data (latest snapshot + 7 days historical time-series)
-  /// into Firebase RTDB under '/solar_pv' if not present or on demand.
-  Future<void> ensureInitialSeed({DateTime? referenceDate, bool force = false}) async {
-    final now = referenceDate ?? DateTime.now();
-    try {
-      if (!force && _solarLatestRef != null) {
-        final check = await _solarLatestRef!.once();
-        if (check.snapshot.value is Map) {
-          return; // Already initialized in Firebase RTDB
-        }
-      }
-
-      final initialSnapshot = generateMockSnapshot(date: now);
-      // 1. Write latest snapshot
-      if (_solarLatestRef != null) {
-        await _solarLatestRef!.set(initialSnapshot.toJson());
-        debugPrint('🌱 Seeded /solar_pv/latest in Firebase RTDB');
-      }
-
-      // 2. Seed 7 days of historical records
-      final sevenDaysData = generate7DayHistoricalData(referenceDate: now);
-      if (_solarHistoryRef != null) {
-        for (final dateEntry in sevenDaysData.entries) {
-          final dateKey = dateEntry.key;
-          for (final hourEntry in dateEntry.value.entries) {
-            final hourKey = hourEntry.key;
-            await _solarHistoryRef!.child('$dateKey/$hourKey').set(hourEntry.value);
-          }
-        }
-        debugPrint('🌱 Seeded 7-day history in /solar_pv/history');
-      }
-    } catch (e) {
-      debugPrint('ensureInitialSeed error: $e');
-    }
-  }
-
-  /// Fetches 7-day historical time-series from Firebase RTDB '/solar_pv/history'.
-  /// Falls back to simulated 7-day time series if database is offline or empty.
-  Future<Map<String, Map<String, dynamic>>> fetchHistory7Days({DateTime? now}) async {
-    final currentTime = now ?? DateTime.now();
-    final result = <String, Map<String, dynamic>>{};
-
-    if (_solarHistoryRef != null) {
-      try {
-        final event = await _solarHistoryRef!.once();
-        if (event.snapshot.value is Map) {
-          final rawMap = event.snapshot.value as Map;
-          for (final dateEntry in rawMap.entries) {
-            final dateKey = dateEntry.key.toString();
-            if (dateEntry.value is Map) {
-              final hoursMap = <String, dynamic>{};
-              final rawHours = dateEntry.value as Map;
-              for (final hourEntry in rawHours.entries) {
-                if (hourEntry.value is Map) {
-                  hoursMap[hourEntry.key.toString()] = Map<String, dynamic>.from(hourEntry.value as Map);
-                }
-              }
-              if (hoursMap.isNotEmpty) {
-                result[dateKey] = hoursMap;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('Error fetching 7-day solar history from Firebase: $e');
-      }
-    }
-
-    if (result.isEmpty) {
-      return generate7DayHistoricalData(referenceDate: currentTime);
-    }
-    return result;
-  }
-
-  /// Generates realistic 7-day historical dataset for testing only.
-  /// WARNING: This is mock/simulated data — never use in production paths.
-  @Deprecated('Mock data should only be used in widget tests. Production code should use API data.')
-  static Map<String, Map<String, dynamic>> generate7DayHistoricalData({DateTime? referenceDate}) {
-    final now = referenceDate ?? DateTime.now();
-    final result = <String, Map<String, dynamic>>{};
-
-    for (int dayOffset = 6; dayOffset >= 0; dayOffset--) {
-      final date = now.subtract(Duration(days: dayOffset));
-      final dateKey = formatHistoryDateKey(date);
-      final hoursMap = <String, dynamic>{};
-
-      final maxH = (dayOffset == 0) ? now.hour.clamp(4, 20) : 20;
-
-      for (int h = 4; h <= maxH; h++) {
-        final hourDate = DateTime(date.year, date.month, date.day, h, 0);
-        final snap = generateMockSnapshot(date: hourDate);
-        final snapMsw = snap.forPlant('msw');
-        final snapKelanis = snap.forPlant('kelanis');
-
-        hoursMap[h.toString().padLeft(2, '0')] = {
-          'timestamp': hourDate.toIso8601String(),
-          'hour': h,
-          'total_power_kw': snap.totalPowerKw,
-          'total_yield_kwh': snap.effectiveYieldTodayKwh,
-          'peak_power_kw': snap.peakPowerKw,
-          'irradiance': snap.irradiance,
-          'pr': snap.performanceRatio,
-          'grid_export_kw': snap.gridExportKw,
-          'online_inverters': snap.onlineInverterCount,
-          'total_inverters': snap.totalInverterCount,
-          'plants': {
-            'msw': {
-              'power_kw': snapMsw.totalPowerKw,
-              'yield_kwh': snapMsw.effectiveYieldTodayKwh,
-              'irradiance': snapMsw.irradiance,
-              'pr': snapMsw.performanceRatio,
-              'peak_power_kw': snapMsw.peakPowerKw,
-              'online_inverters': snapMsw.onlineInverterCount,
-              'total_inverters': snapMsw.totalInverterCount,
-            },
-            'kelanis': {
-              'power_kw': snapKelanis.totalPowerKw,
-              'yield_kwh': snapKelanis.effectiveYieldTodayKwh,
-              'irradiance': snapKelanis.irradiance,
-              'pr': snapKelanis.performanceRatio,
-              'peak_power_kw': snapKelanis.peakPowerKw,
-              'online_inverters': snapKelanis.onlineInverterCount,
-              'total_inverters': snapKelanis.totalInverterCount,
-            },
-          },
-          'inverters': snap.inverters.map((inv) => {
-            'id': inv.id,
-            'name': inv.name,
-            'cluster_id': inv.clusterId,
-            'plant_id': inv.plantId,
-            'power_kw': inv.powerKw,
-            'yield_today_kwh': inv.yieldTodayKwh,
-            'specific_energy': inv.specificEnergy ?? (inv.capacityKwp > 0 ? (inv.yieldTodayKwh / inv.capacityKwp) : 0.0),
-            'temperature': inv.temperature,
-            'efficiency': inv.efficiency,
-            'grid_frequency': inv.gridFrequency,
-            'line_voltage_ab': inv.lineVoltageAb,
-            'line_voltage_bc': inv.lineVoltageBc,
-            'line_voltage_ca': inv.lineVoltageCa,
-            'phase_current_a': inv.phaseCurrentA,
-            'phase_current_b': inv.phaseCurrentB,
-            'phase_current_c': inv.phaseCurrentC,
-            'power_factor': inv.powerFactor,
-            'mppt_power_kw': inv.mpptPowerKw,
-            'status': inv.status.name,
-            'is_night_standby': inv.isNightStandby,
-          }).toList(),
-        };
-      }
-      result[dateKey] = hoursMap;
-    }
-    return result;
-  }
-
-  /// Generates realistic solar curves for testing only.
-  /// WARNING: This is mock/simulated data — never use in production paths.
-  @Deprecated('Mock data should only be used in widget tests. Production code should use API data.')
-  static SolarSnapshot generateMockSnapshot({DateTime? date}) {
-    final now = date ?? DateTime.now();
-    final hour = now.hour + (now.minute / 60.0);
-
-    // Sun bell curve peaking at 12:30 WITA (6:00 to 18:30)
-    double sunFactor = 0.0;
-    if (hour >= 6.0 && hour <= 18.5) {
-      final normalized = (hour - 6.0) / 12.5; // 0 to 1
-      sunFactor = sin(normalized * pi).clamp(0.0, 1.0);
-    }
-    final isNight = hour < 5.8 || hour > 18.5;
-    final double peakSystemPower = 720.0; // kW peak for 868 kWp total plant
-    final double currentPower = isNight ? 0.0 : (peakSystemPower * sunFactor * (0.92 + Random().nextDouble() * 0.08));
-
-    // Calculate cumulative generation up to current hour
-    double cumulativeYield = 0.0;
-
-    // Hourly data points ONLY up to current hour (no future points, never zero-fill the future)
-    final List<SolarHourlyPoint> hourlyPoints = [];
-    final maxHour = now.hour.clamp(4, 20);
-    for (int h = 4; h <= maxHour; h++) {
-      double hSunFactor = 0.0;
-      if (h >= 6 && h <= 18) {
-        final norm = (h - 6.0) / 12.5;
-        hSunFactor = sin(norm * pi).clamp(0.0, 1.0);
-        hSunFactor = pow(hSunFactor, 1.4).toDouble();
-      }
-
-      final hKw = peakSystemPower * hSunFactor * 0.95;
-      final hIrr = hSunFactor * 0.95;
-      final hPr = (hKw > 0) ? (80.5 + (h % 3) * 0.5) : 0.0;
-
-      cumulativeYield += hKw * 0.85; // rough integral kWh
-
-      final mswHIrr = double.parse((hIrr * 1.02).toStringAsFixed(2));
-      final kelanisHIrr = double.parse((hIrr * 0.96).toStringAsFixed(2));
-      final mswHPower = double.parse((hKw * (400.0 / 868.0)).toStringAsFixed(1));
-      final kelanisHPower = double.parse((hKw * (468.0 / 868.0)).toStringAsFixed(1));
-      final mswHPr = double.parse((hPr > 0 ? 82.6 : 0.0).toStringAsFixed(1));
-      final kelanisHPr = double.parse((hPr > 0 ? 79.8 : 0.0).toStringAsFixed(1));
-
-      hourlyPoints.add(SolarHourlyPoint(
-        hour: h,
-        timeStr: '${h.toString().padLeft(2, '0')}:00',
-        powerKw: double.parse(hKw.toStringAsFixed(1)),
-        irradiance: double.parse(hIrr.toStringAsFixed(2)),
-        pr: double.parse(hPr.toStringAsFixed(1)),
-        plantData: {
-          'msw': {'power': mswHPower, 'irradiance': mswHIrr, 'pr': mswHPr},
-          'kelanis': {'power': kelanisHPower, 'irradiance': kelanisHIrr, 'pr': kelanisHPr},
-        },
-      ));
-    }
-
-    if (!isNight && currentPower > 0.0) {
-      final morningElapsed = (hour - 5.8).clamp(0.1, 12.0);
-      final minMorningYield = (currentPower * morningElapsed * 0.45).clamp(1.5, 9999.0);
-      if (cumulativeYield < minMorningYield) {
-        cumulativeYield = minMorningYield;
-      }
-    } else if (cumulativeYield == 0.0 && !isNight) {
-      cumulativeYield = 850.0;
-    }
-
-    // 12 Inverters configured in config.ini (MSW: 400 kWp, Kelanis: 468 kWp)
-    final inverters = <SolarInverter>[
-      // 165 kWp Array (4 units @ 41.25 kWp each = 165 kWp, MSW)
-      SolarInverter(
-        id: 'inv_165_1',
-        name: 'INV PLTS 165 kWp 1',
-        clusterId: '165kwp',
-        plantId: 'msw',
-        capacityKwp: 41.25,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.047).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.048).toStringAsFixed(1)),
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-      SolarInverter(
-        id: 'inv_165_2',
-        name: 'INV PLTS 165 kWp 2',
-        clusterId: '165kwp',
-        plantId: 'msw',
-        capacityKwp: 41.25,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.047).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.047).toStringAsFixed(1)),
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-      SolarInverter(
-        id: 'inv_165_3',
-        name: 'INV PLTS 165 kWp 3',
-        clusterId: '165kwp',
-        plantId: 'msw',
-        capacityKwp: 41.25,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.048).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.048).toStringAsFixed(1)),
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-      SolarInverter(
-        id: 'inv_165_4',
-        name: 'INV PLTS 165 kWp 4',
-        clusterId: '165kwp',
-        plantId: 'msw',
-        capacityKwp: 41.25,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.046).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.047).toStringAsFixed(1)),
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-
-      // 200 kWp Array (2 units @ 100 kWp each = 200 kWp, MSW)
-      SolarInverter(
-        id: 'inv_200_1',
-        name: 'INV_PLTS_200_KWP_1',
-        clusterId: '200kwp',
-        plantId: 'msw',
-        capacityKwp: 100.0,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.115).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.115).toStringAsFixed(1)),
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-      SolarInverter(
-        id: 'inv_200_2',
-        name: 'INV_PLTS_200_KWP_2',
-        clusterId: '200kwp',
-        plantId: 'msw',
-        capacityKwp: 100.0,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.114).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.114).toStringAsFixed(1)),
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-
-      // 468 kWp Array (4 units @ 117 kWp each = 468 kWp, Kelanis with Specific Energy)
-      SolarInverter(
-        id: 'inv_468_1',
-        name: 'Inverter(COM1-1)',
-        clusterId: '468kwp',
-        plantId: 'kelanis',
-        capacityKwp: 117.0,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.134).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.134).toStringAsFixed(1)),
-        specificEnergy: 3.42,
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-      SolarInverter(
-        id: 'inv_468_2',
-        name: 'Inverter(COM1-2)',
-        clusterId: '468kwp',
-        plantId: 'kelanis',
-        capacityKwp: 117.0,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.136).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.135).toStringAsFixed(1)),
-        specificEnergy: 3.45,
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-        temperature: 48.5,
-        gridFrequency: 50.02,
-        lineVoltageAb: 399.5,
-        lineVoltageBc: 400.1,
-        lineVoltageCa: 399.8,
-        efficiency: 98.6,
-        powerFactor: 0.999,
-        activeAlarms: [
-          SolarAlarm(
-            alarmId: 'ALM-2001-01',
-            alarmName: 'High Temperature Derating Warning',
-            devName: 'Inverter(COM1-2)',
-            devId: 'inv_468_2',
-            esn: '6T2469039092',
-            severity: AlarmSeverity.warning,
-            raiseTime: DateTime(now.year, now.month, now.day, 13, 15),
-            cause: 'Inverter internal temperature reached 48.5°C approaching ventilation warning threshold.',
-            repairSuggestion: '1. Inspect ventilation grilles and ensure they are not blocked by dust or debris.\n2. Verify external cooling fans run normally.\n3. Check ambient temperature of inverter shelter.',
-            status: 'Active',
-            alarmCode: 2001,
-          ),
-        ],
-      ),
-      SolarInverter(
-        id: 'inv_468_3',
-        name: 'Inverter(COM1-3)',
-        clusterId: '468kwp',
-        plantId: 'kelanis',
-        capacityKwp: 117.0,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.133).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.133).toStringAsFixed(1)),
-        specificEnergy: 3.40,
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-      SolarInverter(
-        id: 'inv_468_4',
-        name: 'Inverter(COM1-5)',
-        clusterId: '468kwp',
-        plantId: 'kelanis',
-        capacityKwp: 117.0,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.135).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.135).toStringAsFixed(1)),
-        specificEnergy: 3.43,
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-
-      // 15 & 20 kWp Array (2 units = 35 kWp, MSW)
-      SolarInverter(
-        id: 'inv_15',
-        name: 'INV PLTS 15 kWp',
-        clusterId: '15_20kwp',
-        plantId: 'msw',
-        capacityKwp: 15.0,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.017).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.017).toStringAsFixed(1)),
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-      SolarInverter(
-        id: 'inv_20',
-        name: 'INV PLTS 20 kWp',
-        clusterId: '15_20kwp',
-        plantId: 'msw',
-        capacityKwp: 20.0,
-        powerKw: isNight ? 0.0 : double.parse((currentPower * 0.023).toStringAsFixed(1)),
-        yieldTodayKwh: double.parse((cumulativeYield * 0.023).toStringAsFixed(1)),
-        status: isNight ? InverterStatus.standby : InverterStatus.normal,
-        isNightStandby: isNight,
-      ),
-    ];
-
-    final activeCount = isNight ? 0 : inverters.where((i) => i.status == InverterStatus.normal).length;
-    final irradiance = isNight ? 0.0 : double.parse((sunFactor * 5.2).toStringAsFixed(2));
-    final mswIrr = isNight ? 0.0 : double.parse((sunFactor * 5.35).toStringAsFixed(2));
-    final kelanisIrr = isNight ? 0.0 : double.parse((sunFactor * 4.92).toStringAsFixed(2));
-    final plantIrrMap = {'msw': mswIrr, 'kelanis': kelanisIrr};
-    final plantPrMap = {'msw': 82.6, 'kelanis': 79.8};
-    final bucketTime = FusionSolarApiClient.roundToNearestHalfHour(now);
-
-    return SolarSnapshot(
-      timestamp: bucketTime,
-      isLive: true,
-      totalPowerKw: double.parse(currentPower.toStringAsFixed(1)),
-      peakPowerKw: peakSystemPower,
-      totalYieldTodayKwh: double.parse(cumulativeYield.toStringAsFixed(1)),
-      yieldYesterdayKwh: 2600.0,
-      irradiance: irradiance,
-      performanceRatio: 81.4,
-      plantIrradiance: plantIrrMap,
-      plantPr: plantPrMap,
-      gridExportKw: double.parse((currentPower * 0.98).toStringAsFixed(1)),
-      onlineInverterCount: isNight ? 12 : activeCount,
-      totalInverterCount: 12,
-      totalCapacityKwp: 868.0,
-      inverters: inverters,
-      hourlyPoints: hourlyPoints,
-    );
   }
 
   /// Formats a WhatsApp-friendly daily production report

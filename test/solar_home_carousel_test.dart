@@ -166,12 +166,12 @@ void main() {
       // Slide 1: Verify all Solar PV data is displayed simultaneously without scrolling
       expect(find.text('SOLAR PV PLANT STATUS'), findsOneWidget);
       expect(find.text('TOTAL SOLAR GENERATION'), findsOneWidget);
-      expect(find.text('IRRADIANCE'), findsOneWidget);
-      expect(find.text('PERF. RATIO'), findsOneWidget);
-      expect(find.text('PEAK POWER'), findsOneWidget);
       expect(find.text('PLTS MSW'), findsOneWidget);
       expect(find.text('PLTS KELANIS'), findsOneWidget);
-      expect(find.text('CO2 AVOIDED'), findsOneWidget);
+      expect(find.text('MSW IRR'), findsOneWidget);
+      expect(find.text('MSW PR'), findsOneWidget);
+      expect(find.text('KELANIS IRR'), findsOneWidget);
+      expect(find.text('KELANIS PR'), findsOneWidget);
     });
 
     testWidgets('Zero overflow on mobile screen dimensions (360x740, 390x844, 412x915)',

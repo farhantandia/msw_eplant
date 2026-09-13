@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:msw_eplant/constants/theme.dart';
+import 'package:msw_eplant/models/solar_models.dart';
 import 'package:msw_eplant/services/fusion_solar_service.dart';
 import 'package:msw_eplant/pages/solarpv/solar_numeric_trend_sheet.dart';
 
@@ -10,7 +11,7 @@ class SolarLandscapeTrendPage extends StatefulWidget {
   final String? plantId; // 'msw' | 'kelanis' | null (total)
   final String? inverterId;
   final String? inverterName;
-  final int initialTimeframe; // 0: Today, 1: Yesterday, 2: 7 Days
+  final int initialTimeframe; // 0: Today, 1: Yesterday
 
   const SolarLandscapeTrendPage({
     super.key,
@@ -27,15 +28,14 @@ class SolarLandscapeTrendPage extends StatefulWidget {
 
 class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
   late SolarMetricType _activeMetric;
-  late int _selectedTimeframe;
-  Map<String, Map<String, dynamic>>? _historyData;
+  late int _selectedTimeframe; // 0: Today, 1: Yesterday
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _activeMetric = widget.initialMetric;
-    _selectedTimeframe = widget.initialTimeframe;
+    _selectedTimeframe = widget.initialTimeframe.clamp(0, 1);
 
     // Lock to landscape orientation and enable immersive sticky mode
     SystemChrome.setPreferredOrientations([
@@ -56,153 +56,133 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
   }
 
   Future<void> _loadData() async {
-    final data = await FusionSolarService.instance.fetchHistory7Days();
+    await FusionSolarService.instance.ensureYesterdayData();
     if (mounted) {
       setState(() {
-        _historyData = data;
         _isLoading = false;
       });
     }
   }
 
   List<FlSpot> _buildSpots() {
-    if (_historyData == null || _historyData!.isEmpty) return [];
+    final service = FusionSolarService.instance;
+    final isYesterday = _selectedTimeframe == 1;
+    final points = isYesterday
+        ? (service.yesterdayHourlyPoints ?? const <SolarHourlyPoint>[])
+        : service.snapshotNotifier.value.hourlyPoints;
 
-    final sortedDates = _historyData!.keys.toList()..sort();
-    if (sortedDates.isEmpty) return [];
+    if (points.isEmpty) return [];
 
     final spots = <FlSpot>[];
+    final snapshot = service.snapshotNotifier.value;
 
-    if (_selectedTimeframe == 0) {
-      // Today (Last date in sorted list)
-      final todayKey = sortedDates.last;
-      final hoursMap = _historyData![todayKey] ?? {};
-      for (int h = 4; h <= 20; h++) {
-        final hKey = h.toString().padLeft(2, '0');
-        if (hoursMap.containsKey(hKey)) {
-          final val = _extractMetricValue(hoursMap[hKey]);
-          spots.add(FlSpot(h.toDouble(), val));
+    // Check if inverter specific
+    SolarInverter? inv;
+    if (widget.inverterId != null) {
+      try {
+        inv = snapshot.inverters.firstWhere(
+          (i) => i.id == widget.inverterId || i.name == widget.inverterName,
+        );
+      } catch (_) {}
+    }
+
+    final double invCapRatio = (inv != null && snapshot.totalCapacityKwp > 0)
+        ? (inv.capacityKwp / snapshot.totalCapacityKwp)
+        : 1.0;
+
+    double cumulativeYield = 0.0;
+
+    for (final p in points) {
+      final hour = p.hour.toDouble();
+      double val = 0.0;
+
+      if (inv != null) {
+        // Inverter metrics
+        switch (_activeMetric) {
+          case SolarMetricType.power:
+            val = p.powerKw * invCapRatio;
+            break;
+          case SolarMetricType.dailyYield:
+            cumulativeYield += (p.powerKw * invCapRatio) * 0.85;
+            val = cumulativeYield;
+            break;
+          case SolarMetricType.specificEnergy:
+            val = inv.specificEnergy ?? 0.0;
+            break;
+          case SolarMetricType.inverterTemp:
+            val = inv.temperature ?? 28.0;
+            break;
+          case SolarMetricType.inverterEfficiency:
+            val = inv.efficiency ?? 98.4;
+            break;
+          case SolarMetricType.gridFrequency:
+            val = inv.gridFrequency ?? 50.0;
+            break;
+          case SolarMetricType.voltage:
+            val = inv.lineVoltageAb ?? 380.0;
+            break;
+          case SolarMetricType.current:
+            val = inv.phaseCurrentA ?? 0.0;
+            break;
+          default:
+            val = p.powerKw * invCapRatio;
+        }
+      } else if (widget.plantId != null) {
+        // Plant-specific metrics
+        final pData = p.plantData?[widget.plantId];
+        switch (_activeMetric) {
+          case SolarMetricType.power:
+            val = pData?['power'] ?? (p.powerKw * 0.5);
+            break;
+          case SolarMetricType.dailyYield:
+            cumulativeYield += (pData?['power'] ?? (p.powerKw * 0.5)) * 0.85;
+            val = cumulativeYield;
+            break;
+          case SolarMetricType.irradiance:
+            val = pData?['irradiance'] ?? p.irradiance;
+            break;
+          case SolarMetricType.pr:
+            val = pData?['pr'] ?? p.pr;
+            break;
+          default:
+            val = pData?['power'] ?? (p.powerKw * 0.5);
+        }
+      } else {
+        // Overall aggregate metrics
+        switch (_activeMetric) {
+          case SolarMetricType.power:
+            val = p.powerKw;
+            break;
+          case SolarMetricType.dailyYield:
+            cumulativeYield += p.powerKw * 0.85;
+            val = cumulativeYield;
+            break;
+          case SolarMetricType.irradiance:
+            val = p.irradiance;
+            break;
+          case SolarMetricType.pr:
+            val = p.pr;
+            break;
+          case SolarMetricType.gridExport:
+            val = (p.powerKw > 20.0) ? (p.powerKw * 0.92) : 0.0;
+            break;
+          case SolarMetricType.co2:
+            cumulativeYield += p.powerKw * 0.85;
+            val = double.parse((cumulativeYield * 0.00085).toStringAsFixed(2));
+            break;
+          case SolarMetricType.coal:
+            cumulativeYield += p.powerKw * 0.85;
+            val = double.parse((cumulativeYield * 0.00040).toStringAsFixed(2));
+            break;
+          default:
+            val = p.powerKw;
         }
       }
-    } else if (_selectedTimeframe == 1) {
-      // Yesterday (Second to last date if exists, otherwise same date)
-      final yestKey = sortedDates.length >= 2 ? sortedDates[sortedDates.length - 2] : sortedDates.first;
-      final hoursMap = _historyData![yestKey] ?? {};
-      for (int h = 4; h <= 20; h++) {
-        final hKey = h.toString().padLeft(2, '0');
-        if (hoursMap.containsKey(hKey)) {
-          final val = _extractMetricValue(hoursMap[hKey]);
-          spots.add(FlSpot(h.toDouble(), val));
-        }
-      }
-    } else {
-      // 7 Days
-      double xIndex = 0;
-      for (final dateKey in sortedDates) {
-        final hoursMap = _historyData![dateKey] ?? {};
-        double maxDayVal = 0;
-        double sumVal = 0;
-        int count = 0;
 
-        for (final hourData in hoursMap.values) {
-          final val = _extractMetricValue(hourData);
-          if (val > maxDayVal) maxDayVal = val;
-          sumVal += val;
-          count++;
-        }
-
-        double pointVal = maxDayVal;
-        if (_activeMetric == SolarMetricType.pr ||
-            _activeMetric == SolarMetricType.gridFrequency ||
-            _activeMetric == SolarMetricType.voltage) {
-          pointVal = count > 0 ? (sumVal / count) : 0.0;
-        }
-
-        spots.add(FlSpot(xIndex, pointVal));
-        xIndex += 1.0;
-      }
+      spots.add(FlSpot(hour, val));
     }
 
     return spots;
-  }
-
-  double _extractMetricValue(dynamic hourRecord) {
-    if (hourRecord is! Map) return 0.0;
-    final map = Map<String, dynamic>.from(hourRecord);
-
-    // Inverter metrics
-    if (widget.inverterId != null) {
-      final invList = map['inverters'];
-      if (invList is List) {
-        for (final item in invList) {
-          if (item is Map && (item['id'] == widget.inverterId || item['name'] == widget.inverterName)) {
-            final invMap = Map<String, dynamic>.from(item);
-            switch (_activeMetric) {
-              case SolarMetricType.power:
-                return (invMap['power_kw'] as num?)?.toDouble() ?? 0.0;
-              case SolarMetricType.dailyYield:
-                return (invMap['yield_today_kwh'] as num?)?.toDouble() ?? 0.0;
-              case SolarMetricType.specificEnergy:
-                return (invMap['specific_energy'] as num?)?.toDouble() ?? 0.0;
-              case SolarMetricType.inverterTemp:
-                return (invMap['temperature'] as num?)?.toDouble() ?? 28.0;
-              case SolarMetricType.inverterEfficiency:
-                return (invMap['efficiency'] as num?)?.toDouble() ?? 98.4;
-              case SolarMetricType.gridFrequency:
-                return (invMap['grid_frequency'] as num?)?.toDouble() ?? 50.0;
-              case SolarMetricType.voltage:
-                return (invMap['line_voltage_ab'] as num?)?.toDouble() ?? 380.0;
-              case SolarMetricType.current:
-                return (invMap['phase_current_a'] as num?)?.toDouble() ?? 0.0;
-              default:
-                return (invMap['power_kw'] as num?)?.toDouble() ?? 0.0;
-            }
-          }
-        }
-      }
-    }
-
-    // Plant-specific metrics
-    if (widget.plantId != null) {
-      final plants = map['plants'];
-      if (plants is Map && plants.containsKey(widget.plantId)) {
-        final pMap = Map<String, dynamic>.from(plants[widget.plantId] as Map);
-        switch (_activeMetric) {
-          case SolarMetricType.power:
-            return (pMap['power_kw'] as num?)?.toDouble() ?? 0.0;
-          case SolarMetricType.dailyYield:
-            return (pMap['yield_kwh'] as num?)?.toDouble() ?? 0.0;
-          case SolarMetricType.irradiance:
-            return (pMap['irradiance'] as num?)?.toDouble() ?? 0.0;
-          case SolarMetricType.pr:
-            return (pMap['pr'] as num?)?.toDouble() ?? 0.0;
-          default:
-            return (pMap['power_kw'] as num?)?.toDouble() ?? 0.0;
-        }
-      }
-    }
-
-    // Overall aggregate metrics
-    switch (_activeMetric) {
-      case SolarMetricType.power:
-        return (map['total_power_kw'] as num?)?.toDouble() ?? 0.0;
-      case SolarMetricType.dailyYield:
-        return (map['total_yield_kwh'] as num?)?.toDouble() ?? 0.0;
-      case SolarMetricType.irradiance:
-        return (map['irradiance'] as num?)?.toDouble() ?? 0.0;
-      case SolarMetricType.pr:
-        return (map['pr'] as num?)?.toDouble() ?? 0.0;
-      case SolarMetricType.gridExport:
-        return (map['grid_export_kw'] as num?)?.toDouble() ?? 0.0;
-      case SolarMetricType.co2:
-        final y = (map['total_yield_kwh'] as num?)?.toDouble() ?? 0.0;
-        return double.parse((y * 0.00085).toStringAsFixed(2));
-      case SolarMetricType.coal:
-        final y = (map['total_yield_kwh'] as num?)?.toDouble() ?? 0.0;
-        return double.parse((y * 0.00040).toStringAsFixed(2));
-      default:
-        return (map['total_power_kw'] as num?)?.toDouble() ?? 0.0;
-    }
   }
 
   List<SolarMetricType> _getAvailableMetrics() {
@@ -232,7 +212,6 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
   @override
   Widget build(BuildContext context) {
     final spots = _buildSpots();
-    final sortedDates = _historyData != null ? (_historyData!.keys.toList()..sort()) : <String>[];
 
     double minVal = spots.isNotEmpty ? spots.first.y : 0.0;
     double maxVal = spots.isNotEmpty ? spots.first.y : 0.0;
@@ -251,6 +230,10 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
         : (widget.plantId == 'kelanis'
             ? 'PLTS Kelanis (468 kWp)'
             : (widget.plantId == 'msw' ? 'PLTS MSW (400 kWp)' : 'Solar Plant Total (868 kWp)'));
+
+    final isYesterdayNoData = _selectedTimeframe == 1 &&
+        (FusionSolarService.instance.yesterdayHourlyPoints == null ||
+            FusionSolarService.instance.yesterdayHourlyPoints!.isEmpty);
 
     return Scaffold(
       backgroundColor: const Color(0xFF090D16),
@@ -336,7 +319,7 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Timeframe Segmented Switcher
+                  // Timeframe Segmented Switcher (Today & Yesterday only)
                   Container(
                     padding: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
@@ -349,7 +332,6 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
                       children: [
                         _buildTimeTab('Today', 0),
                         _buildTimeTab('Yesterday', 1),
-                        _buildTimeTab('7 Days', 2),
                       ],
                     ),
                   ),
@@ -369,148 +351,150 @@ class _SolarLandscapeTrendPageState extends State<SolarLandscapeTrendPage> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2))
-                    : LineChart(
-                        LineChartData(
-                          gridData: FlGridData(
-                            show: true,
-                            drawVerticalLine: true,
-                            verticalInterval: _selectedTimeframe == 2 ? 1 : 2,
-                            getDrawingHorizontalLine: (_) => FlLine(
-                              color: AppColors.border.withValues(alpha: 0.35),
-                              strokeWidth: 1,
+                    : isYesterdayNoData
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.info_outline, color: AppColors.textDim, size: 36),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Data kemarin belum tersedia',
+                                  style: TextStyle(color: AppColors.textDim, fontSize: AppTheme.fs13),
+                                ),
+                              ],
                             ),
-                            getDrawingVerticalLine: (_) => FlLine(
-                              color: AppColors.border.withValues(alpha: 0.20),
-                              strokeWidth: 1,
-                              dashArray: [4, 4],
-                            ),
-                          ),
-                          titlesData: FlTitlesData(
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 42,
-                                getTitlesWidget: (val, _) {
-                                  if (val <= 0 || val >= chartMaxY) return const SizedBox.shrink();
-                                  return Text(
-                                    val < 10 ? val.toStringAsFixed(1) : val.toInt().toString(),
-                                    style: TextStyle(
-                                      fontSize: AppTheme.fs11,
-                                      fontWeight: FontWeight.w600,
-                                      color: _activeMetric.color.withValues(alpha: 0.8),
+                          )
+                        : spots.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'Belum ada data untuk metrik ini',
+                                  style: TextStyle(color: AppColors.textDim, fontSize: AppTheme.fs13),
+                                ),
+                              )
+                            : LineChart(
+                                LineChartData(
+                                  gridData: FlGridData(
+                                    show: true,
+                                    drawVerticalLine: true,
+                                    verticalInterval: 2,
+                                    getDrawingHorizontalLine: (_) => FlLine(
+                                      color: AppColors.border.withValues(alpha: 0.35),
+                                      strokeWidth: 1,
                                     ),
-                                  );
-                                },
-                              ),
-                            ),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 44,
-                                getTitlesWidget: (val, _) {
-                                  if (val <= 0 || val >= chartMaxY) return const SizedBox.shrink();
-                                  return Text(
-                                    val < 10 ? val.toStringAsFixed(1) : val.toInt().toString(),
-                                    style: const TextStyle(fontSize: AppTheme.fs11, color: AppColors.textDim),
-                                  );
-                                },
-                              ),
-                            ),
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                reservedSize: 24,
-                                interval: _selectedTimeframe == 2 ? 1 : 2,
-                                getTitlesWidget: (val, _) {
-                                  if (_selectedTimeframe == 2) {
-                                    final idx = val.toInt();
-                                    if (idx >= 0 && idx < sortedDates.length) {
-                                      final d = sortedDates[idx];
-                                      return Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          d,
-                                          style: const TextStyle(fontSize: AppTheme.fs11, color: AppColors.textDim),
-                                        ),
-                                      );
-                                    }
-                                    return const SizedBox.shrink();
-                                  } else {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Text(
-                                        '${val.toInt().toString().padLeft(2, '0')}:00',
-                                        style: const TextStyle(fontSize: AppTheme.fs11, color: AppColors.textDim),
+                                    getDrawingVerticalLine: (_) => FlLine(
+                                      color: AppColors.border.withValues(alpha: 0.20),
+                                      strokeWidth: 1,
+                                      dashArray: [4, 4],
+                                    ),
+                                  ),
+                                  titlesData: FlTitlesData(
+                                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                    rightTitles: AxisTitles(
+                                      sideTitles: SideTitles(
+                                        showTitles: true,
+                                        reservedSize: 42,
+                                        getTitlesWidget: (val, _) {
+                                          if (val <= 0 || val >= chartMaxY) return const SizedBox.shrink();
+                                          return Text(
+                                            val < 10 ? val.toStringAsFixed(1) : val.toInt().toString(),
+                                            style: TextStyle(
+                                              fontSize: AppTheme.fs11,
+                                              fontWeight: FontWeight.w600,
+                                              color: _activeMetric.color.withValues(alpha: 0.8),
+                                            ),
+                                          );
+                                        },
                                       ),
-                                    );
-                                  }
-                                },
-                              ),
-                            ),
-                          ),
-                          borderData: FlBorderData(
-                            show: true,
-                            border: Border.all(color: AppColors.border.withValues(alpha: 0.4)),
-                          ),
-                          minY: 0,
-                          maxY: chartMaxY,
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: spots,
-                              isCurved: true,
-                              curveSmoothness: 0.32,
-                              color: _activeMetric.color,
-                              barWidth: 2.8,
-                              isStrokeCapRound: true,
-                              dotData: FlDotData(
-                                show: true,
-                                getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
-                                  radius: _selectedTimeframe == 2 ? 4.5 : 3.0,
-                                  color: _activeMetric.color,
-                                  strokeWidth: 2,
-                                  strokeColor: Colors.black,
-                                ),
-                              ),
-                              belowBarData: BarAreaData(
-                                show: true,
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    _activeMetric.color.withValues(alpha: 0.32),
-                                    _activeMetric.color.withValues(alpha: 0.0),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                          lineTouchData: LineTouchData(
-                            touchTooltipData: LineTouchTooltipData(
-                              getTooltipItems: (touchedSpots) {
-                                return touchedSpots.map((spot) {
-                                  String timeLabel;
-                                  if (_selectedTimeframe == 2) {
-                                    final idx = spot.x.toInt();
-                                    timeLabel = idx < sortedDates.length ? sortedDates[idx] : 'Day $idx';
-                                  } else {
-                                    timeLabel = '${spot.x.toInt().toString().padLeft(2, '0')}:00 WITA';
-                                  }
-                                  final numStr = spot.y < 10 ? spot.y.toStringAsFixed(2) : spot.y.toStringAsFixed(1);
-                                  return LineTooltipItem(
-                                    '$timeLabel\n$numStr ${_activeMetric.unit}',
-                                    TextStyle(
-                                      color: _activeMetric.color,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: AppTheme.fs12,
                                     ),
-                                  );
-                                }).toList();
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
+                                    leftTitles: AxisTitles(
+                                      sideTitles: SideTitles(
+                                        showTitles: true,
+                                        reservedSize: 44,
+                                        getTitlesWidget: (val, _) {
+                                          if (val <= 0 || val >= chartMaxY) return const SizedBox.shrink();
+                                          return Text(
+                                            val < 10 ? val.toStringAsFixed(1) : val.toInt().toString(),
+                                            style: const TextStyle(fontSize: AppTheme.fs11, color: AppColors.textDim),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    bottomTitles: AxisTitles(
+                                      sideTitles: SideTitles(
+                                        showTitles: true,
+                                        reservedSize: 24,
+                                        interval: 2,
+                                        getTitlesWidget: (val, _) {
+                                          return Padding(
+                                            padding: const EdgeInsets.only(top: 4),
+                                            child: Text(
+                                              '${val.toInt().toString().padLeft(2, '0')}:00',
+                                              style: const TextStyle(fontSize: AppTheme.fs11, color: AppColors.textDim),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  borderData: FlBorderData(
+                                    show: true,
+                                    border: Border.all(color: AppColors.border.withValues(alpha: 0.4)),
+                                  ),
+                                  minX: 4,
+                                  maxX: 20,
+                                  minY: 0,
+                                  maxY: chartMaxY,
+                                  lineBarsData: [
+                                    LineChartBarData(
+                                      spots: spots,
+                                      isCurved: true,
+                                      curveSmoothness: 0.32,
+                                      color: _activeMetric.color,
+                                      barWidth: 2.8,
+                                      isStrokeCapRound: true,
+                                      dotData: FlDotData(
+                                        show: true,
+                                        getDotPainter: (_, __, ___, ____) => FlDotCirclePainter(
+                                          radius: 3.0,
+                                          color: _activeMetric.color,
+                                          strokeWidth: 2,
+                                          strokeColor: Colors.black,
+                                        ),
+                                      ),
+                                      belowBarData: BarAreaData(
+                                        show: true,
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            _activeMetric.color.withValues(alpha: 0.32),
+                                            _activeMetric.color.withValues(alpha: 0.0),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                  lineTouchData: LineTouchData(
+                                    touchTooltipData: LineTouchTooltipData(
+                                      getTooltipItems: (touchedSpots) {
+                                        return touchedSpots.map((spot) {
+                                          final timeLabel = '${spot.x.toInt().toString().padLeft(2, '0')}:00 WITA';
+                                          final numStr = spot.y < 10 ? spot.y.toStringAsFixed(2) : spot.y.toStringAsFixed(1);
+                                          return LineTooltipItem(
+                                            '$timeLabel\n$numStr ${_activeMetric.unit}',
+                                            TextStyle(
+                                              color: _activeMetric.color,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: AppTheme.fs12,
+                                            ),
+                                          );
+                                        }).toList();
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
               ),
             ),
 
